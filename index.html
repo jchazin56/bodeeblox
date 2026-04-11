@@ -975,7 +975,7 @@ html, body {
       </div>
       <div class="stat-tile">
         <div class="st-label">Calories</div>
-        <div class="st-val">1,840</div>
+        <div class="st-val" id="cal-tile-val">0</div>
         <div class="st-sub">2,400 target · <span style="color:var(--g5);">77%</span></div>
         <div style="height:4px;background:var(--g3);border-radius:2px;margin-top:8px;overflow:hidden;"><div style="height:100%;width:77%;background:var(--accent);border-radius:2px;"></div></div>
       </div>
@@ -995,9 +995,9 @@ html, body {
     <div class="section-label">Latest PR</div>
     <div class="card" style="display:flex;align-items:center;justify-content:space-between;">
       <div>
-        <div style="font-size:0.75rem;color:var(--g5);margin-bottom:2px;">Bench Press</div>
-        <div style="font-family:var(--fd);font-weight:700;font-size:1.3rem;letter-spacing:-0.02em;">225 <span style="font-size:0.9rem;color:var(--g5);font-weight:400;">lbs × 5</span></div>
-        <div style="font-size:0.72rem;color:var(--g5);margin-top:2px;">Tuesday, Apr 8</div>
+        <div style="font-size:0.75rem;color:var(--g5);margin-bottom:2px;" id="pr-exercise">No PRs yet</div>
+        <div style="font-family:var(--fd);font-weight:700;font-size:1.3rem;letter-spacing:-0.02em;" id="pr-weight">—</div>
+        <div style="font-size:0.72rem;color:var(--g5);margin-top:2px;" id="pr-date"></div>
       </div>
       <div style="text-align:right;">
         <div class="pill pill-green">↑ New PR</div>
@@ -1130,20 +1130,20 @@ html, body {
         <circle cx="48" cy="48" r="40" fill="none" stroke="#C8F25A" stroke-width="10"
           stroke-dasharray="251.2" stroke-dashoffset="57" stroke-linecap="round"
           transform="rotate(-90 48 48)"/>
-        <text x="48" y="44" text-anchor="middle" fill="#FAFAF8" font-family="Syne" font-weight="700" font-size="14">1,840</text>
+        <text x="48" y="44" text-anchor="middle" fill="#FAFAF8" font-family="Syne" font-weight="700" font-size="14" id="ring-cal">0</text>
         <text x="48" y="58" text-anchor="middle" fill="#8A8A92" font-size="10">/ 2,400</text>
       </svg>
       <div class="macro-stats">
         <div>
-          <div class="macro-row"><span class="macro-name">Protein</span><span class="macro-val" style="color:var(--accent);">124g <span style="font-size:0.7rem;color:var(--g5);">/ 160g</span></span></div>
+          <div class="macro-row"><span class="macro-name">Protein</span><span class="macro-val" style="color:var(--accent);" id="macro-protein-val">0g <span style="font-size:0.7rem;color:var(--g5);">/ 160g</span></span></div>
           <div class="macro-bar-wrap"><div class="macro-bar" style="width:77%;background:var(--accent);"></div></div>
         </div>
         <div>
-          <div class="macro-row"><span class="macro-name">Carbs</span><span class="macro-val">210g <span style="font-size:0.7rem;color:var(--g5);">/ 250g</span></span></div>
+          <div class="macro-row"><span class="macro-name">Carbs</span><span class="macro-val" id="macro-carbs-val">0g <span style="font-size:0.7rem;color:var(--g5);">/ 250g</span></span></div>
           <div class="macro-bar-wrap"><div class="macro-bar" style="width:84%;background:#378ADD;"></div></div>
         </div>
         <div>
-          <div class="macro-row"><span class="macro-name">Fat</span><span class="macro-val">58g <span style="font-size:0.7rem;color:var(--g5);">/ 70g</span></span></div>
+          <div class="macro-row"><span class="macro-name">Fat</span><span class="macro-val" id="macro-fat-val">0g <span style="font-size:0.7rem;color:var(--g5);">/ 70g</span></span></div>
           <div class="macro-bar-wrap"><div class="macro-bar" style="width:83%;background:#EF9F27;"></div></div>
         </div>
       </div>
