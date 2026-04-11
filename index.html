@@ -942,7 +942,7 @@ html, body {
         <div style="font-size:0.75rem;color:var(--g5);margin-bottom:2px;">Good morning</div>
         <div class="screen-title">Jonathan 👊</div>
       </div>
-      <div class="avatar" onclick="switchScreen('profile', null)" style="cursor:pointer;">JK</div>
+      <div class="avatar" id="main-avatar" onclick="switchScreen('profile', null)" style="cursor:pointer;">...</div>
     </div>
 
     <!-- AI Coach Card -->
@@ -1151,26 +1151,7 @@ html, body {
 
     <!-- Meals -->
     <div class="section-label">Meals</div>
-
-    <div class="meal-card">
-      <div class="meal-time">Breakfast · 7:30am</div>
-      <div class="meal-item"><span class="meal-name">Greek Yogurt (2% · 200g)</span><span class="meal-cals">19g · 140 cal</span></div>
-      <div class="meal-item"><span class="meal-name">Blueberries (100g)</span><span class="meal-cals">1g · 57 cal</span></div>
-      <div class="meal-item"><span class="meal-name">Oats (80g dry)</span><span class="meal-cals">10g · 300 cal</span></div>
-    </div>
-
-    <div class="meal-card">
-      <div class="meal-time">Lunch · 12:15pm</div>
-      <div class="meal-item"><span class="meal-name">Chicken Breast (8oz)</span><span class="meal-cals">54g · 370 cal</span></div>
-      <div class="meal-item"><span class="meal-name">White Rice (1 cup cooked)</span><span class="meal-cals">4g · 206 cal</span></div>
-      <div class="meal-item"><span class="meal-name">Broccoli (150g)</span><span class="meal-cals">4g · 51 cal</span></div>
-    </div>
-
-    <div class="meal-card">
-      <div class="meal-time">Snack · 3:45pm</div>
-      <div class="meal-item"><span class="meal-name">Protein Shake</span><span class="meal-cals">25g · 140 cal</span></div>
-      <div class="meal-item"><span class="meal-name">Banana</span><span class="meal-cals">1g · 89 cal</span></div>
-    </div>
+    <div id="meal-cards-container"></div>
 
     <div style="margin:0.75rem 1.25rem 0;">
       <button style="width:100%;padding:0.875rem;background:var(--g2);border:1px dashed var(--g3);border-radius:14px;color:var(--g5);font-family:var(--fb);font-size:0.875rem;cursor:pointer;">
@@ -1211,7 +1192,7 @@ html, body {
     </div>
 
     <div class="profile-hero">
-      <div class="profile-avatar">JK</div>
+      <div class="profile-avatar" id="profile-avatar">...</div>
       <div>
         <div class="profile-name" style="text-align:center;">Jonathan</div>
         <div class="profile-sub" style="text-align:center;">Week 11 · Strength Block · 165 lb goal</div>
@@ -1809,6 +1790,10 @@ async function loadProfile() {
   const greet = document.querySelector('#screen-home .screen-title');
   if (greet) greet.textContent = name + ' 👊';
   document.querySelectorAll('.avatar, .profile-avatar').forEach(el => el.textContent = initials);
+  const mainAv = document.getElementById('main-avatar');
+  if (mainAv) mainAv.textContent = initials;
+  const profAv = document.getElementById('profile-avatar');
+  if (profAv) profAv.textContent = initials;
   const pname = document.querySelector('.profile-name');
   if (pname) pname.textContent = name;
   if (data.current_weight) {
@@ -1840,6 +1825,7 @@ async function loadTodayNutrition() {
   const { data } = await sb.from('nutrition_logs').select('*').eq('user_id', currentUser.id).eq('logged_date', today).order('logged_at', { ascending: true });
   state.todayNutrition = data || [];
   renderNutritionTotals(data || []);
+  renderAllMeals(data || []);
 }
 
 function renderNutritionTotals(logs) {
