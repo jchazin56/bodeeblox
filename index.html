@@ -546,13 +546,12 @@ html, body {
   backdrop-filter: blur(16px);
   border-top: 1px solid var(--g3);
   padding: 0.625rem 0.75rem;
-  padding-bottom: calc(0.625rem + var(--safe-bottom));
   display: flex;
   gap: 0.5rem;
   align-items: center;
   box-sizing: border-box;
-  height: auto;
-  margin-bottom: calc(var(--nav-h));
+  width: 100%;
+  overflow: hidden;
 }
 
 .coach-input {
@@ -1168,7 +1167,7 @@ html, body {
   </div>
 
   <!-- ===== COACH SCREEN ===== -->
-  <div class="screen" id="screen-coach" style="display:none;flex-direction:column;overflow:hidden;">
+  <div class="screen" id="screen-coach" style="display:none;flex-direction:column;overflow:hidden;padding-bottom:0;">
     <div class="screen-header" style="padding-top:1.25rem;flex-shrink:0;">
       <div>
         <div class="screen-title">Coach</div>
@@ -1669,7 +1668,15 @@ function switchScreen(name, el) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   const screen = document.getElementById('screen-' + name);
   screen.classList.add('active');
-  screen.style.display = name === 'coach' ? 'flex' : 'block';
+  if (name === 'coach') {
+    screen.style.display = 'flex';
+    screen.style.flexDirection = 'column';
+    screen.style.height = 'calc(100dvh - var(--nav-h))';
+    screen.style.paddingBottom = '0';
+  } else {
+    screen.style.display = 'block';
+    screen.style.height = '';
+  }
   if (el) el.classList.add('active');
 }
 
