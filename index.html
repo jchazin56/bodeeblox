@@ -1679,24 +1679,343 @@ function toggleCheck(el) {
   el.textContent = el.classList.contains('done') ? '✓' : '';
 }
 
-function sendCoachMsg() {
+const coachHistory = [];
+
+async function buildCoachContext() {
+  const p = state.profile || {};
+  const stats = state.todayStats || {};
+  const nutrition = state.todayNutrition || [];
+  const totalProtein = Math.round(nutrition.reduce((a, l) => a + (l.protein_g || 0), 0));
+  const totalCals = Math.round(nutrition.reduce((a, l) => a + (l.calories || 0), 0));
+  const totalCarbs = Math.round(nutrition.reduce((a, l) => a + (l.carbs_g || 0), 0));
+  const totalFat = Math.round(nutrition.reduce((a, l) => a + (l.fat_g || 0), 0));
+  const topPRs = Object.entries(state.prs).slice(0, 8).map(([ex, w]) => ex + ': ' + w + 'lbs').join(', ');
+
+  // Build meal log summary
+  const mealSummary = nutrition.length > 0
+    ? nutrition.map(l => l.food_name + ' (' + Math.round(l.protein_g||0) + 'g P, ' + Math.round(l.calories||0) + ' cal)').join('; ')
+    : 'Nothing logged yet';
+
+  // Fetch recent workouts from Supabase
+  let recentWorkouts = '';
+  if (currentUser) {
+    const { data: workouts } = await sb.from('workouts')
+      .select('name, started_at, duration_minutes, overall_rpe, is_home_gym, is_deload')
+      .eq('user_id', currentUser.id)
+      .order('started_at', { ascending: false })
+      .limit(5);
+    if (workouts && workouts.length > 0) {
+      recentWorkouts = workouts.map(w => {
+        const date = new Date(w.started_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        return date + ': ' + w.name + (w.duration_minutes ? ' (' + w.duration_minutes + 'min)' : '') + (w.overall_rpe ? ' RPE ' + w.overall_rpe : '') + (w.is_home_gym ? ' [home]' : '') + (w.is_deload ? ' [deload]' : '');
+      }).join('\n');
+    }
+  }
+
+  // Fetch recent body stats
+  let statsHistory = '';
+  if (currentUser) {
+    const { data: bodyStats } = await sb.from('body_stats')
+      .select('logged_date, weight_lbs, sleep_hours, energy_level')
+      .eq('user_id', currentUser.id)
+      .order('logged_date', { ascending: false })
+      .limit(7);
+    if (bodyStats && bodyStats.length > 0) {
+      statsHistory = bodyStats.map(s => s.logged_date + ': ' + (s.weight_lbs||'—') + 'lbs, sleep ' + (s.sleep_hours||'—') + 'hrs, energy ' + (s.energy_level||'—') + '/10').join('\n');
+    }
+  }
+
+  return `You are an expert AI personal trainer and coach inside BodeeBlox. You are direct, specific, and data-driven. You respond like a knowledgeable coach who knows this athlete deeply — not a generic chatbot.
+
+ATHLETE PROFILE:
+- Name: ${p.name || 'Athlete'}
+- Goal: ${p.training_goal || 'body recomposition'}
+- Target weight: ${p.goal_weight || 165}lbs | Current: ${p.current_weight || stats.weight_lbs || 'unknown'}lbs
+- Training split: ${p.training_split || '6-day'} | Experience: ${p.experience_level || 'intermediate'}
+- Daily targets: ${p.goal_protein_g || 160}g protein, ${p.goal_calories || 2400} calories
+
+TODAY (${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}):
+- Weight: ${stats.weight_lbs || 'not logged'}lbs
+- Sleep: ${stats.sleep_hours || 'not logged'}hrs
+- Energy: ${stats.energy_level || 'not logged'}/10
+- Protein: ${totalProtein}g / ${p.goal_protein_g || 160}g
+- Calories: ${totalCals} / ${p.goal_calories || 2400}
+- Carbs: ${totalCarbs}g | Fat: ${totalFat}g
+- Meals logged: ${mealSummary}
+
+RECENT WORKOUTS:
+${recentWorkouts || 'No workouts logged yet'}
+
+BODY STATS HISTORY (last 7 days):
+${statsHistory || 'No history yet'}
+
+TOP PERSONAL RECORDS:
+${topPRs || 'No PRs logged yet'}
+
+AVAILABLE ACTIONS — you can call these tools to take action in the app:
+- log_food: log a food item (name, calories, protein_g, carbs_g, fat_g, meal_type)
+- log_set: log a workout set (exercise_name, weight_lbs, reps, set_number)
+- log_body_stat: log weight/sleep/energy (weight_lbs, sleep_hours, energy_level)
+- update_profile: update goals (goal_weight, goal_protein_g, goal_calories, training_goal)
+- toggle_home_gym: switch today to home gym mode
+
+When the user asks you to log something or take an action, use the appropriate tool. Always confirm what you logged. Keep conversational responses to 2-4 sentences unless more detail is requested.`;
+}
+
+// Coach tools definition
+const COACH_TOOLS = [
+  {
+    name: 'log_food',
+    description: 'Log a food item to the nutrition log. Use this when the user mentions eating something or asks to log food.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        food_name: { type: 'string', description: 'Name of the food' },
+        calories: { type: 'number', description: 'Calories' },
+        protein_g: { type: 'number', description: 'Protein in grams' },
+        carbs_g: { type: 'number', description: 'Carbohydrates in grams' },
+        fat_g: { type: 'number', description: 'Fat in grams' },
+        meal_type: { type: 'string', enum: ['breakfast','lunch','dinner','snack','pre_workout','post_workout'], description: 'Meal type' }
+      },
+      required: ['food_name']
+    }
+  },
+  {
+    name: 'log_set',
+    description: 'Log a workout set. Use when the user mentions completing an exercise.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        exercise_name: { type: 'string', description: 'Name of the exercise' },
+        weight_lbs: { type: 'number', description: 'Weight in pounds' },
+        reps: { type: 'integer', description: 'Number of reps' },
+        set_number: { type: 'integer', description: 'Set number (default 1)' }
+      },
+      required: ['exercise_name', 'weight_lbs', 'reps']
+    }
+  },
+  {
+    name: 'log_body_stat',
+    description: 'Log body stats like weight, sleep, or energy level.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        weight_lbs: { type: 'number', description: 'Body weight in pounds' },
+        sleep_hours: { type: 'number', description: 'Hours of sleep' },
+        energy_level: { type: 'integer', description: 'Energy level 1-10' }
+      }
+    }
+  },
+  {
+    name: 'update_profile',
+    description: 'Update the user profile goals or stats.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        goal_weight: { type: 'number', description: 'Target weight in lbs' },
+        goal_protein_g: { type: 'integer', description: 'Daily protein target in grams' },
+        goal_calories: { type: 'integer', description: 'Daily calorie target' },
+        training_goal: { type: 'string', description: 'Training goal e.g. recomposition, strength, fat_loss' },
+        current_weight: { type: 'number', description: 'Current weight in lbs' }
+      }
+    }
+  },
+  {
+    name: 'lookup_food_nutrients',
+    description: 'Look up nutritional info for a food item before logging it.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        food_query: { type: 'string', description: 'Food name and quantity to look up e.g. "chicken breast 8oz"' }
+      },
+      required: ['food_query']
+    }
+  }
+];
+
+async function executeCoachTool(toolName, toolInput) {
+  switch(toolName) {
+    case 'log_food':
+      const { error: foodErr } = await saveNutritionEntry(toolInput);
+      if (!foodErr) {
+        showToast('Logged: ' + toolInput.food_name + ' 🥗');
+        return 'Successfully logged ' + toolInput.food_name + ' (' + (toolInput.calories||0) + ' cal, ' + (toolInput.protein_g||0) + 'g protein)';
+      }
+      return 'Failed to log food: ' + foodErr.message;
+
+    case 'log_set':
+      await logSet(toolInput.exercise_name, toolInput.set_number||1, toolInput.weight_lbs, toolInput.reps);
+      return 'Logged ' + toolInput.exercise_name + ': ' + toolInput.weight_lbs + 'lbs × ' + toolInput.reps;
+
+    case 'log_body_stat':
+      const today = new Date().toISOString().split('T')[0];
+      const updates = {};
+      if (toolInput.weight_lbs) updates.weight_lbs = toolInput.weight_lbs;
+      if (toolInput.sleep_hours) updates.sleep_hours = toolInput.sleep_hours;
+      if (toolInput.energy_level) updates.energy_level = toolInput.energy_level;
+      if (state.todayStats) {
+        await sb.from('body_stats').update(updates).eq('id', state.todayStats.id);
+        state.todayStats = { ...state.todayStats, ...updates };
+      } else {
+        const { data } = await sb.from('body_stats').insert({ user_id: currentUser.id, logged_date: today, ...updates }).select().single();
+        state.todayStats = data;
+      }
+      if (toolInput.weight_lbs) {
+        await sb.from('profiles').update({ current_weight: toolInput.weight_lbs }).eq('id', currentUser.id);
+        const wTile = document.querySelector('#screen-home .stat-tile:nth-child(3) .st-val');
+        if (wTile) wTile.textContent = toolInput.weight_lbs;
+      }
+      showToast('Stats updated ⚖️');
+      return 'Logged: ' + JSON.stringify(updates);
+
+    case 'update_profile':
+      await sb.from('profiles').update(toolInput).eq('id', currentUser.id);
+      state.profile = { ...state.profile, ...toolInput };
+      showToast('Profile updated ✓');
+      return 'Profile updated: ' + JSON.stringify(toolInput);
+
+    case 'lookup_food_nutrients':
+      return await lookupFoodNutrients(toolInput.food_query);
+
+    default:
+      return 'Unknown tool: ' + toolName;
+  }
+}
+
+async function lookupFoodNutrients(query) {
+  // Tier 1: Open Food Facts for branded products
+  try {
+    const offRes = await fetch('https://world.openfoodfacts.org/cgi/search.pl?search_terms=' + encodeURIComponent(query) + '&search_simple=1&action=process&json=1&page_size=1');
+    const offData = await offRes.json();
+    if (offData.products && offData.products.length > 0) {
+      const p = offData.products[0];
+      const n = p.nutriments || {};
+      return JSON.stringify({
+        source: 'Open Food Facts',
+        food_name: p.product_name || query,
+        calories: Math.round(n['energy-kcal_100g'] || 0),
+        protein_g: Math.round(n.proteins_100g || 0),
+        carbs_g: Math.round(n.carbohydrates_100g || 0),
+        fat_g: Math.round(n.fat_100g || 0),
+        per: '100g'
+      });
+    }
+  } catch(e) {}
+
+  // Tier 2: USDA
+  try {
+    const usdaRes = await fetch('https://api.nal.usda.gov/fdc/v1/foods/search?query=' + encodeURIComponent(query) + '&pageSize=1&api_key=DEMO_KEY');
+    const usdaData = await usdaRes.json();
+    if (usdaData.foods && usdaData.foods.length > 0) {
+      const food = usdaData.foods[0];
+      const nutrients = {};
+      (food.foodNutrients || []).forEach(n => {
+        if (n.nutrientName === 'Energy') nutrients.calories = Math.round(n.value || 0);
+        if (n.nutrientName === 'Protein') nutrients.protein_g = Math.round(n.value || 0);
+        if (n.nutrientName === 'Carbohydrate, by difference') nutrients.carbs_g = Math.round(n.value || 0);
+        if (n.nutrientName === 'Total lipid (fat)') nutrients.fat_g = Math.round(n.value || 0);
+      });
+      return JSON.stringify({ source: 'USDA', food_name: food.description, ...nutrients, per: '100g' });
+    }
+  } catch(e) {}
+
+  // Tier 3: Claude estimates
+  return JSON.stringify({ source: 'estimate', food_name: query, note: 'Could not find in database - please estimate or use Claude knowledge' });
+}
+
+async function sendCoachMsg() {
   const input = document.getElementById('coachInput');
   const text = input.value.trim();
   if (!text) return;
   const msgs = document.getElementById('coach-msgs');
+
   const userMsg = document.createElement('div');
   userMsg.className = 'msg-bubble msg-user';
   userMsg.textContent = text;
   msgs.appendChild(userMsg);
   input.value = '';
   msgs.scrollTop = msgs.scrollHeight;
-  setTimeout(() => {
+  coachHistory.push({ role: 'user', content: text });
+
+  const typing = document.createElement('div');
+  typing.className = 'msg-bubble msg-ai';
+  typing.id = 'typing-indicator';
+  typing.style.color = 'var(--g5)';
+  typing.innerHTML = '<span style="animation:pulse 1s infinite">Coach is thinking...</span>';
+  msgs.appendChild(typing);
+  msgs.scrollTop = msgs.scrollHeight;
+
+  try {
+    const systemPrompt = await buildCoachContext();
+    let messages = coachHistory.slice(-10);
+    let finalReply = '';
+    let continueLoop = true;
+
+    while (continueLoop) {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': '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',
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-allow-browser': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          system: systemPrompt,
+          tools: COACH_TOOLS,
+          messages: messages
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.stop_reason === 'tool_use') {
+        // Execute each tool call
+        const toolResults = [];
+        for (const block of data.content) {
+          if (block.type === 'tool_use') {
+            const result = await executeCoachTool(block.name, block.input);
+            toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: result });
+          }
+        }
+        // Add assistant response and tool results to messages
+        messages = [...messages, { role: 'assistant', content: data.content }, { role: 'user', content: toolResults }];
+      } else {
+        // Final text response
+        finalReply = data.content?.find(b => b.type === 'text')?.text || 'Done.';
+        continueLoop = false;
+      }
+    }
+
+    document.getElementById('typing-indicator')?.remove();
+
     const aiMsg = document.createElement('div');
     aiMsg.className = 'msg-bubble msg-ai';
-    aiMsg.textContent = 'Got it. Based on your current training block and recovery data, here\'s what I recommend...';
+    aiMsg.textContent = finalReply;
     msgs.appendChild(aiMsg);
     msgs.scrollTop = msgs.scrollHeight;
-  }, 800);
+    coachHistory.push({ role: 'assistant', content: finalReply });
+
+    if (currentUser) {
+      await sb.from('coach_messages').insert([
+        { user_id: currentUser.id, role: 'user', content: text },
+        { user_id: currentUser.id, role: 'assistant', content: finalReply }
+      ]);
+    }
+
+  } catch (err) {
+    console.error('Coach error:', err);
+    document.getElementById('typing-indicator')?.remove();
+    const errMsg = document.createElement('div');
+    errMsg.className = 'msg-bubble msg-ai';
+    errMsg.style.color = 'var(--danger)';
+    errMsg.textContent = 'Connection error — check your internet and try again.';
+    msgs.appendChild(errMsg);
+    msgs.scrollTop = msgs.scrollHeight;
+    coachHistory.pop();
+  }
 }
 
 document.getElementById('coachInput').addEventListener('keydown', e => {
@@ -1902,10 +2221,116 @@ function openFoodLogger() {
   const modal = document.createElement('div');
   modal.id = 'foodLogModal';
   modal.className = 'log-modal active';
-  modal.innerHTML = `<div class="log-sheet" style="max-height:85vh;overflow-y:auto;"><div class="sheet-handle"></div><div style="font-family:var(--fd);font-weight:700;font-size:1.1rem;margin-bottom:1rem;">Log Food</div><div class="auth-field"><label class="auth-label">Food name</label><input class="auth-input" id="food-name-input" type="text" placeholder="Chicken breast, Greek yogurt..."></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;"><div class="auth-field"><label class="auth-label">Calories</label><input class="auth-input" id="food-cals" type="number" placeholder="0" inputmode="decimal"></div><div class="auth-field"><label class="auth-label">Protein (g)</label><input class="auth-input" id="food-protein" type="number" placeholder="0" inputmode="decimal"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;"><div class="auth-field"><label class="auth-label">Carbs (g)</label><input class="auth-input" id="food-carbs" type="number" placeholder="0" inputmode="decimal"></div><div class="auth-field"><label class="auth-label">Fat (g)</label><input class="auth-input" id="food-fat" type="number" placeholder="0" inputmode="decimal"></div></div><div class="auth-field"><label class="auth-label">Meal</label><select class="auth-input" id="food-meal-type" style="cursor:pointer;"><option value="breakfast">Breakfast</option><option value="lunch">Lunch</option><option value="dinner">Dinner</option><option value="snack" selected>Snack</option><option value="pre_workout">Pre-Workout</option><option value="post_workout">Post-Workout</option></select></div><button class="auth-btn" id="food-save-btn" onclick="submitFoodLog()">Save Food</button><button onclick="document.getElementById('foodLogModal').remove()" style="width:100%;margin-top:0.75rem;padding:0.75rem;background:none;border:none;color:var(--g5);font-family:var(--fb);font-size:0.875rem;cursor:pointer;">Cancel</button></div>`;
+  modal.innerHTML = `<div class="log-sheet" style="max-height:85vh;overflow-y:auto;"><div class="sheet-handle"></div><div style="font-family:var(--fd);font-weight:700;font-size:1.1rem;margin-bottom:1rem;">Log Food</div><div class="auth-field"><label class="auth-label">Food name & quantity</label><div style="display:flex;gap:0.5rem;"><input class="auth-input" id="food-name-input" type="text" placeholder="e.g. Chicken breast 8oz" style="flex:1;"><button id="ai-lookup-btn" onclick="aiLookupFood()" style="background:var(--accent);color:var(--black);border:none;border-radius:10px;padding:0 1rem;font-family:var(--fb);font-size:0.8rem;font-weight:500;cursor:pointer;white-space:nowrap;flex-shrink:0;">AI Lookup</button></div><div id="lookup-status" style="font-size:0.72rem;color:var(--g5);margin-top:4px;min-height:16px;"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;"><div class="auth-field"><label class="auth-label">Calories</label><input class="auth-input" id="food-cals" type="number" placeholder="0" inputmode="decimal"></div><div class="auth-field"><label class="auth-label">Protein (g)</label><input class="auth-input" id="food-protein" type="number" placeholder="0" inputmode="decimal"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;"><div class="auth-field"><label class="auth-label">Carbs (g)</label><input class="auth-input" id="food-carbs" type="number" placeholder="0" inputmode="decimal"></div><div class="auth-field"><label class="auth-label">Fat (g)</label><input class="auth-input" id="food-fat" type="number" placeholder="0" inputmode="decimal"></div></div><div class="auth-field"><label class="auth-label">Meal</label><select class="auth-input" id="food-meal-type" style="cursor:pointer;"><option value="breakfast">Breakfast</option><option value="lunch">Lunch</option><option value="dinner">Dinner</option><option value="snack" selected>Snack</option><option value="pre_workout">Pre-Workout</option><option value="post_workout">Post-Workout</option></select></div><button class="auth-btn" id="food-save-btn" onclick="submitFoodLog()">Save Food</button><button onclick="document.getElementById('foodLogModal').remove()" style="width:100%;margin-top:0.75rem;padding:0.75rem;background:none;border:none;color:var(--g5);font-family:var(--fb);font-size:0.875rem;cursor:pointer;">Cancel</button></div>`;
   modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
   document.getElementById('app').appendChild(modal);
   setTimeout(() => document.getElementById('food-name-input')?.focus(), 100);
+}
+
+async function aiLookupFood() {
+  const query = document.getElementById('food-name-input')?.value.trim();
+  if (!query) return;
+  const btn = document.getElementById('ai-lookup-btn');
+  const status = document.getElementById('lookup-status');
+  btn.textContent = 'Looking up...';
+  btn.disabled = true;
+  status.textContent = 'Searching Open Food Facts and USDA...';
+
+  try {
+    // Tier 1: Open Food Facts
+    let found = false;
+    try {
+      const offRes = await fetch('https://world.openfoodfacts.org/cgi/search.pl?search_terms=' + encodeURIComponent(query) + '&search_simple=1&action=process&json=1&page_size=3');
+      const offData = await offRes.json();
+      if (offData.products && offData.products.length > 0) {
+        const p = offData.products[0];
+        const n = p.nutriments || {};
+        if (n['energy-kcal_100g'] || n.proteins_100g) {
+          document.getElementById('food-name-input').value = p.product_name || query;
+          document.getElementById('food-cals').value = Math.round(n['energy-kcal_100g'] || 0);
+          document.getElementById('food-protein').value = Math.round(n.proteins_100g || 0);
+          document.getElementById('food-carbs').value = Math.round(n.carbohydrates_100g || 0);
+          document.getElementById('food-fat').value = Math.round(n.fat_100g || 0);
+          status.textContent = '✓ Found in Open Food Facts (per 100g) — adjust quantity if needed';
+          status.style.color = 'var(--accent)';
+          found = true;
+        }
+      }
+    } catch(e) {}
+
+    // Tier 2: USDA
+    if (!found) {
+      status.textContent = 'Trying USDA database...';
+      try {
+        const usdaRes = await fetch('https://api.nal.usda.gov/fdc/v1/foods/search?query=' + encodeURIComponent(query) + '&pageSize=1&api_key=DEMO_KEY');
+        const usdaData = await usdaRes.json();
+        if (usdaData.foods && usdaData.foods.length > 0) {
+          const food = usdaData.foods[0];
+          const nutrients = {};
+          (food.foodNutrients || []).forEach(n => {
+            if (n.nutrientName === 'Energy') nutrients.cals = Math.round(n.value || 0);
+            if (n.nutrientName === 'Protein') nutrients.protein = Math.round(n.value || 0);
+            if (n.nutrientName === 'Carbohydrate, by difference') nutrients.carbs = Math.round(n.value || 0);
+            if (n.nutrientName === 'Total lipid (fat)') nutrients.fat = Math.round(n.value || 0);
+          });
+          if (nutrients.cals || nutrients.protein) {
+            document.getElementById('food-name-input').value = food.description;
+            document.getElementById('food-cals').value = nutrients.cals || 0;
+            document.getElementById('food-protein').value = nutrients.protein || 0;
+            document.getElementById('food-carbs').value = nutrients.carbs || 0;
+            document.getElementById('food-fat').value = nutrients.fat || 0;
+            status.textContent = '✓ Found in USDA database (per 100g) — adjust quantity if needed';
+            status.style.color = 'var(--accent)';
+            found = true;
+          }
+        }
+      } catch(e) {}
+    }
+
+    // Tier 3: Claude AI estimate
+    if (!found) {
+      status.textContent = 'Using AI estimate...';
+      const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': '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',
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-allow-browser': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 200,
+          messages: [{
+            role: 'user',
+            content: 'Give me the nutritional info for: ' + query + '. Respond ONLY with JSON: {"food_name":"...","calories":0,"protein_g":0,"carbs_g":0,"fat_g":0}. No other text.'
+          }]
+        })
+      });
+      const aiData = await aiRes.json();
+      const aiText = aiData.content?.[0]?.text || '{}';
+      try {
+        const parsed = JSON.parse(aiText.replace(/```json|```/g, '').trim());
+        document.getElementById('food-name-input').value = parsed.food_name || query;
+        document.getElementById('food-cals').value = parsed.calories || 0;
+        document.getElementById('food-protein').value = parsed.protein_g || 0;
+        document.getElementById('food-carbs').value = parsed.carbs_g || 0;
+        document.getElementById('food-fat').value = parsed.fat_g || 0;
+        status.textContent = '✓ AI estimate — verify before saving';
+        status.style.color = 'var(--warn)';
+        found = true;
+      } catch(e) {
+        status.textContent = 'Could not find — enter manually';
+        status.style.color = 'var(--danger)';
+      }
+    }
+  } catch(err) {
+    status.textContent = 'Lookup failed — enter manually';
+    status.style.color = 'var(--danger)';
+  }
+
+  btn.textContent = 'AI Lookup';
+  btn.disabled = false;
 }
 
 async function submitFoodLog() {
