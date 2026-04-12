@@ -511,11 +511,11 @@ html, body {
 
 /* ===================== COACH SCREEN ===================== */
 .coach-messages {
-  padding: 0.5rem 1.25rem 5rem;
+  padding: 0.5rem 1.25rem 1rem;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  min-height: 300px;
+  min-height: 0;
 }
 
 .msg-bubble {
@@ -541,22 +541,18 @@ html, body {
 }
 
 .coach-input-bar {
-  position: fixed;
-  bottom: calc(var(--nav-h) + var(--safe-bottom));
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100%;
-  max-width: 430px;
+  flex-shrink: 0;
   background: rgba(10,10,11,0.97);
   backdrop-filter: blur(16px);
   border-top: 1px solid var(--g3);
   padding: 0.625rem 0.75rem;
+  padding-bottom: calc(0.625rem + var(--safe-bottom));
   display: flex;
   gap: 0.5rem;
   align-items: center;
-  z-index: 40;
   box-sizing: border-box;
-  height: 60px;
+  height: auto;
+  margin-bottom: calc(var(--nav-h));
 }
 
 .coach-input {
@@ -1172,15 +1168,15 @@ html, body {
   </div>
 
   <!-- ===== COACH SCREEN ===== -->
-  <div class="screen" id="screen-coach">
-    <div class="screen-header" style="padding-top:1.25rem;">
+  <div class="screen" id="screen-coach" style="display:none;flex-direction:column;overflow:hidden;">
+    <div class="screen-header" style="padding-top:1.25rem;flex-shrink:0;">
       <div>
         <div class="screen-title">Coach</div>
         <div style="font-size:0.72rem;color:var(--accent);display:flex;align-items:center;gap:4px;margin-top:2px;"><div class="ai-dot-live" style="width:6px;height:6px;"></div> Knows your full history</div>
       </div>
     </div>
 
-    <div class="coach-messages" id="coach-msgs">
+    <div class="coach-messages" id="coach-msgs" style="flex:1;overflow-y:auto;padding-bottom:1rem;">
       <div class="msg-bubble msg-ai">Hey Jonathan 👊 You're in week 11 of your strength block. Sleep has been averaging 6.2hrs this week — that's limiting your recovery. Want me to adjust Thursday's session intensity, or keep it aggressive since it's your best forecast day?</div>
       <div class="msg-bubble msg-user">Keep Thursday aggressive. What should I prioritize?</div>
       <div class="msg-bubble msg-ai">Smart call — Thursday's your peak window. Prioritize heavy compounds: squat and deadlift. Aim for RPE 8–9 on your top sets. Your bench has been trending up 2.5lbs/week so you're due for a PR attempt — try 235×5 if the first two sets feel clean. Make sure protein hits 160g+ the day before.</div>
@@ -1666,9 +1662,14 @@ function switchAuthTab(tab) {
 
 // ===== APP NAVIGATION =====
 function switchScreen(name, el) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.screen').forEach(s => {
+    s.classList.remove('active');
+    s.style.display = 'none';
+  });
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('screen-' + name).classList.add('active');
+  const screen = document.getElementById('screen-' + name);
+  screen.classList.add('active');
+  screen.style.display = name === 'coach' ? 'flex' : 'block';
   if (el) el.classList.add('active');
 }
 
@@ -2426,23 +2427,6 @@ document.querySelectorAll('.log-option').forEach((opt, i) => {
 
 // Wire sign out button
 document.querySelector('.settings-item:last-child').addEventListener('click', handleSignOut);
-
-// Fix iOS keyboard pushing layout
-if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', () => {
-    const bar = document.querySelector('.coach-input-bar');
-    if (!bar) return;
-    const navH = 72;
-    const viewportBottom = window.innerHeight - window.visualViewport.height;
-    if (viewportBottom > 100) {
-      // Keyboard is open
-      bar.style.bottom = (window.innerHeight - window.visualViewport.height + navH) + 'px';
-    } else {
-      // Keyboard closed
-      bar.style.bottom = '';
-    }
-  });
-}
 
 // Boot
 initAuth();
