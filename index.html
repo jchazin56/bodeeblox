@@ -500,14 +500,15 @@ html, body {
 .meal-time { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--g5); margin-bottom: 0.5rem; }
 .meal-item {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
+  gap: 0.5rem;
   padding: 0.4rem 0;
   border-bottom: 1px solid var(--g3);
 }
 .meal-item:last-child { border-bottom: none; padding-bottom: 0; }
-.meal-name { font-size: 0.875rem; }
-.meal-cals { font-size: 0.8rem; color: var(--g5); }
+.meal-name { font-size: 0.875rem; flex: 1; min-width: 0; }
+.meal-cals { font-size: 0.8rem; color: var(--g5); white-space: nowrap; flex-shrink: 0; }
 
 /* ===================== COACH SCREEN ===================== */
 .coach-messages {
