@@ -1952,13 +1952,11 @@ async function sendCoachMsg() {
     let continueLoop = true;
 
     while (continueLoop) {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch('/.netlify/functions/coach', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': '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',
           'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-allow-browser': 'true'
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
@@ -2290,13 +2288,11 @@ async function aiLookupFood() {
     // Tier 3: Claude AI estimate
     if (!found) {
       status.textContent = 'Using AI estimate...';
-      const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+      const aiRes = await fetch('/.netlify/functions/coach', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': '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',
           'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-allow-browser': 'true'
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
