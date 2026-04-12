@@ -550,19 +550,21 @@ html, body {
   background: rgba(10,10,11,0.97);
   backdrop-filter: blur(16px);
   border-top: 1px solid var(--g3);
-  padding: 0.75rem 1rem;
+  padding: 0.625rem 0.75rem;
   display: flex;
   gap: 0.5rem;
   align-items: center;
   z-index: 40;
+  box-sizing: border-box;
 }
 
 .coach-input {
   flex: 1;
+  min-width: 0;
   background: var(--g2);
   border: 1px solid var(--g3);
   border-radius: 12px;
-  padding: 0.7rem 1rem;
+  padding: 0.7rem 0.875rem;
   font-family: var(--fb);
   font-size: 0.875rem;
   color: var(--white);
@@ -573,7 +575,9 @@ html, body {
 .coach-input::placeholder { color: var(--g4); }
 
 .coach-send {
-  width: 40px; height: 40px;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
   background: var(--accent);
   border: none;
   border-radius: 12px;
