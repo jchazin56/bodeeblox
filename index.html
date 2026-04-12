@@ -2317,93 +2317,38 @@ async function aiLookupFood() {
   const status = document.getElementById('lookup-status');
   btn.textContent = 'Looking up...';
   btn.disabled = true;
-  status.textContent = 'Searching Open Food Facts and USDA...';
+  status.textContent = 'Looking up nutrients...';
+  status.style.color = 'var(--g5)';
 
   try {
-    // Tier 1: Open Food Facts
-    let found = false;
-    try {
-      const offRes = await fetch('https://world.openfoodfacts.org/cgi/search.pl?search_terms=' + encodeURIComponent(query) + '&search_simple=1&action=process&json=1&page_size=3');
-      const offData = await offRes.json();
-      if (offData.products && offData.products.length > 0) {
-        const p = offData.products[0];
-        const n = p.nutriments || {};
-        if (n['energy-kcal_100g'] || n.proteins_100g) {
-          document.getElementById('food-name-input').value = p.product_name || query;
-          document.getElementById('food-cals').value = Math.round(n['energy-kcal_100g'] || 0);
-          document.getElementById('food-protein').value = Math.round(n.proteins_100g || 0);
-          document.getElementById('food-carbs').value = Math.round(n.carbohydrates_100g || 0);
-          document.getElementById('food-fat').value = Math.round(n.fat_100g || 0);
-          status.textContent = '✓ Found in Open Food Facts (per 100g) — adjust quantity if needed';
-          status.style.color = 'var(--accent)';
-          found = true;
-        }
-      }
-    } catch(e) {}
-
-    // Tier 2: USDA
-    if (!found) {
-      status.textContent = 'Trying USDA database...';
-      try {
-        const usdaRes = await fetch('https://api.nal.usda.gov/fdc/v1/foods/search?query=' + encodeURIComponent(query) + '&pageSize=1&api_key=DEMO_KEY');
-        const usdaData = await usdaRes.json();
-        if (usdaData.foods && usdaData.foods.length > 0) {
-          const food = usdaData.foods[0];
-          const nutrients = {};
-          (food.foodNutrients || []).forEach(n => {
-            if (n.nutrientName === 'Energy') nutrients.cals = Math.round(n.value || 0);
-            if (n.nutrientName === 'Protein') nutrients.protein = Math.round(n.value || 0);
-            if (n.nutrientName === 'Carbohydrate, by difference') nutrients.carbs = Math.round(n.value || 0);
-            if (n.nutrientName === 'Total lipid (fat)') nutrients.fat = Math.round(n.value || 0);
-          });
-          if (nutrients.cals || nutrients.protein) {
-            document.getElementById('food-name-input').value = food.description;
-            document.getElementById('food-cals').value = nutrients.cals || 0;
-            document.getElementById('food-protein').value = nutrients.protein || 0;
-            document.getElementById('food-carbs').value = nutrients.carbs || 0;
-            document.getElementById('food-fat').value = nutrients.fat || 0;
-            status.textContent = '✓ Found in USDA database (per 100g) — adjust quantity if needed';
-            status.style.color = 'var(--accent)';
-            found = true;
-          }
-        }
-      } catch(e) {}
-    }
-
-    // Tier 3: Claude AI estimate
-    if (!found) {
-      status.textContent = 'Using AI estimate...';
-      const aiRes = await fetch('/.netlify/functions/coach', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 200,
-          messages: [{
-            role: 'user',
-            content: 'Give me the nutritional info for: ' + query + '. Respond ONLY with JSON: {"food_name":"...","calories":0,"protein_g":0,"carbs_g":0,"fat_g":0}. No other text.'
-          }]
-        })
-      });
-      const aiData = await aiRes.json();
-      const aiText = aiData.content?.[0]?.text || '{}';
-      try {
-        const parsed = JSON.parse(aiText.replace(/```json|```/g, '').trim());
-        document.getElementById('food-name-input').value = parsed.food_name || query;
-        document.getElementById('food-cals').value = parsed.calories || 0;
-        document.getElementById('food-protein').value = parsed.protein_g || 0;
-        document.getElementById('food-carbs').value = parsed.carbs_g || 0;
-        document.getElementById('food-fat').value = parsed.fat_g || 0;
-        status.textContent = '✓ AI estimate — verify before saving';
-        status.style.color = 'var(--warn)';
-        found = true;
-      } catch(e) {
-        status.textContent = 'Could not find — enter manually';
-        status.style.color = 'var(--danger)';
-      }
+    // Use Claude AI first — most accurate for specific portions and whole foods
+    const aiRes = await fetch('/.netlify/functions/coach', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 300,
+        messages: [{
+          role: 'user',
+          content: 'Provide accurate nutritional info for exactly: "' + query + '". Account for the specific quantity mentioned. If no quantity given, use a standard single serving. Be precise — do not guess brand names or rename the food. Respond ONLY with valid JSON, no markdown: {"food_name":"exact description with quantity","calories":0,"protein_g":0,"carbs_g":0,"fat_g":0,"sugar_g":0}'
+        }]
+      })
+    });
+    const aiData = await aiRes.json();
+    const aiText = aiData.content?.[0]?.text || '{}';
+    const parsed = JSON.parse(aiText.replace(/```json|```/g, '').trim());
+    if (parsed.calories || parsed.protein_g) {
+      document.getElementById('food-name-input').value = parsed.food_name || query;
+      document.getElementById('food-cals').value = parsed.calories || '';
+      document.getElementById('food-protein').value = parsed.protein_g || '';
+      document.getElementById('food-carbs').value = parsed.carbs_g || '';
+      document.getElementById('food-fat').value = parsed.fat_g || '';
+      document.getElementById('food-sugar').value = parsed.sugar_g || '';
+      status.textContent = '✓ Nutrients found — review and save';
+      status.style.color = 'var(--accent)';
+    } else {
+      status.textContent = 'Could not find — enter manually';
+      status.style.color = 'var(--danger)';
     }
   } catch(err) {
     status.textContent = 'Lookup failed — enter manually';
