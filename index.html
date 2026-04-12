@@ -2108,7 +2108,7 @@ function startWeeklyAssessment() {
 // =============================================
 // DATA LAYER
 // =============================================
-const state = { profile: null, todayStats: null, todayNutrition: [], activeWorkout: null, activeSets: [], prs: {} };
+const state = { profile: null, todayStats: null, todayNutrition: [], activeWorkout: null, activeSets: [], prs: {}, favoriteMeals: null };
 
 async function loadProfile() {
   const { data } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
@@ -2304,7 +2304,7 @@ function openFoodLogger() {
   const modal = document.createElement('div');
   modal.id = 'foodLogModal';
   modal.className = 'log-modal active';
-  modal.innerHTML = `<div class="log-sheet" style="max-height:90vh;overflow-y:auto;-webkit-overflow-scrolling:touch;"><div class="sheet-handle"></div><div style="font-family:var(--fd);font-weight:700;font-size:1.1rem;margin-bottom:1rem;">Log Food</div><div class="auth-field"><label class="auth-label">Food name & quantity</label><div style="display:flex;gap:0.5rem;align-items:center;"><input class="auth-input" id="food-name-input" type="text" placeholder="e.g. Chicken breast 8oz" style="flex:1;min-width:0;"><button id="ai-lookup-btn" onclick="aiLookupFood()" style="background:var(--accent);color:var(--black);border:none;border-radius:10px;padding:0.5rem 0.875rem;font-family:var(--fb);font-size:0.8rem;font-weight:500;cursor:pointer;white-space:nowrap;flex-shrink:0;height:44px;">AI Lookup</button></div><div id="lookup-status" style="font-size:0.72rem;color:var(--g5);margin-top:4px;min-height:16px;"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;"><div class="auth-field"><label class="auth-label">Calories</label><input class="auth-input" id="food-cals" type="number" placeholder="" inputmode="decimal"></div><div class="auth-field"><label class="auth-label">Protein (g)</label><input class="auth-input" id="food-protein" type="number" placeholder="" inputmode="decimal"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;"><div class="auth-field"><label class="auth-label">Carbs (g)</label><input class="auth-input" id="food-carbs" type="number" placeholder="" inputmode="decimal"></div><div class="auth-field"><label class="auth-label">Fat (g)</label><input class="auth-input" id="food-fat" type="number" placeholder="" inputmode="decimal"></div></div><div class="auth-field"><label class="auth-label">Sugar (g)</label><input class="auth-input" id="food-sugar" type="number" placeholder="" inputmode="decimal"></div><div class="auth-field"><label class="auth-label">Meal</label><select class="auth-input" id="food-meal-type" style="cursor:pointer;height:44px;"><option value="breakfast">Breakfast</option><option value="lunch">Lunch</option><option value="dinner">Dinner</option><option value="snack" selected>Snack</option><option value="pre_workout">Pre-Workout</option><option value="post_workout">Post-Workout</option></select></div><button class="auth-btn" id="food-save-btn" onclick="submitFoodLog()" style="margin-top:0.5rem;">Save Food</button><button onclick="document.getElementById('foodLogModal').remove()" style="width:100%;margin-top:0.75rem;padding:0.75rem;background:none;border:none;color:var(--g5);font-family:var(--fb);font-size:0.875rem;cursor:pointer;">Cancel</button></div>`;
+  modal.innerHTML = `<div class="log-sheet" style="max-height:90vh;overflow-y:auto;-webkit-overflow-scrolling:touch;"><div class="sheet-handle"></div><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;"><div style="font-family:var(--fd);font-weight:700;font-size:1.1rem;">Log Food</div><button onclick="openFavoritesSheet()" style="background:var(--g2);border:1px solid var(--g3);border-radius:10px;padding:0.4rem 0.875rem;font-family:var(--fb);font-size:0.75rem;color:var(--accent);cursor:pointer;font-weight:500;">⭐ Favorites</button></div><div class="auth-field"><label class="auth-label">Food name & quantity</label><div style="display:flex;gap:0.5rem;align-items:center;"><input class="auth-input" id="food-name-input" type="text" placeholder="e.g. Chicken breast 8oz" style="flex:1;min-width:0;"><button id="ai-lookup-btn" onclick="aiLookupFood()" style="background:var(--accent);color:var(--black);border:none;border-radius:10px;padding:0.5rem 0.875rem;font-family:var(--fb);font-size:0.8rem;font-weight:500;cursor:pointer;white-space:nowrap;flex-shrink:0;height:44px;">AI Lookup</button></div><div id="lookup-status" style="font-size:0.72rem;color:var(--g5);margin-top:4px;min-height:16px;"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;"><div class="auth-field"><label class="auth-label">Calories</label><input class="auth-input" id="food-cals" type="number" placeholder="" inputmode="decimal"></div><div class="auth-field"><label class="auth-label">Protein (g)</label><input class="auth-input" id="food-protein" type="number" placeholder="" inputmode="decimal"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;"><div class="auth-field"><label class="auth-label">Carbs (g)</label><input class="auth-input" id="food-carbs" type="number" placeholder="" inputmode="decimal"></div><div class="auth-field"><label class="auth-label">Fat (g)</label><input class="auth-input" id="food-fat" type="number" placeholder="" inputmode="decimal"></div></div><div class="auth-field"><label class="auth-label">Sugar (g)</label><input class="auth-input" id="food-sugar" type="number" placeholder="" inputmode="decimal"></div><div class="auth-field"><label class="auth-label">Meal</label><select class="auth-input" id="food-meal-type" style="cursor:pointer;height:44px;"><option value="breakfast">Breakfast</option><option value="lunch">Lunch</option><option value="dinner">Dinner</option><option value="snack" selected>Snack</option><option value="pre_workout">Pre-Workout</option><option value="post_workout">Post-Workout</option></select></div><button class="auth-btn" id="food-save-btn" onclick="submitFoodLog()" style="margin-top:0.5rem;">Save Food</button><button onclick="promptSaveFavorite()" style="width:100%;margin-top:0.5rem;padding:0.75rem;background:var(--g2);border:1px solid var(--g3);border-radius:12px;color:var(--accent);font-family:var(--fb);font-size:0.875rem;cursor:pointer;font-weight:500;">⭐ Save as Favorite</button><button onclick="document.getElementById('foodLogModal').remove()" style="width:100%;margin-top:0.5rem;padding:0.75rem;background:none;border:none;color:var(--g5);font-family:var(--fb);font-size:0.875rem;cursor:pointer;">Cancel</button></div>`;
   modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
   document.getElementById('app').appendChild(modal);
   setTimeout(() => document.getElementById('food-name-input')?.focus(), 100);
@@ -2359,6 +2359,23 @@ async function aiLookupFood() {
   btn.disabled = false;
 }
 
+function promptSaveFavorite() {
+  const name = document.getElementById('food-name-input')?.value.trim();
+  if (!name) { showToast('Enter a food name first'); return; }
+  const favName = prompt('Save as favorite — give it a name:', name);
+  if (!favName) return;
+  const entry = {
+    food_name: name,
+    calories: parseFloat(document.getElementById('food-cals')?.value)||null,
+    protein_g: parseFloat(document.getElementById('food-protein')?.value)||null,
+    carbs_g: parseFloat(document.getElementById('food-carbs')?.value)||null,
+    fat_g: parseFloat(document.getElementById('food-fat')?.value)||null,
+    sugar_g: parseFloat(document.getElementById('food-sugar')?.value)||null,
+    meal_type: document.getElementById('food-meal-type')?.value||'snack'
+  };
+  saveFavoriteMeal(entry, favName);
+}
+
 async function submitFoodLog() {
   const name = document.getElementById('food-name-input')?.value.trim();
   if (!name) return;
@@ -2403,6 +2420,69 @@ async function submitWeightLog() {
   if (bsVals[0]) bsVals[0].textContent = weight;
   document.getElementById('weightLogModal')?.remove();
   showToast('Check-in saved! ⚖️');
+}
+
+// =============================================
+// FAVORITE MEALS
+// =============================================
+async function saveFavoriteMeal(entry, name) {
+  const { error } = await sb.from('favorite_meals').insert({
+    user_id: currentUser.id,
+    name: name,
+    meal_type: entry.meal_type || 'snack',
+    items: [entry],
+    total_calories: entry.calories || 0,
+    total_protein_g: entry.protein_g || 0,
+    total_carbs_g: entry.carbs_g || 0,
+    total_fat_g: entry.fat_g || 0
+  });
+  if (!error) { showToast('Saved to favorites!'); state.favoriteMeals = null; }
+}
+
+async function loadFavoriteMeals() {
+  if (state.favoriteMeals) return state.favoriteMeals;
+  const { data } = await sb.from('favorite_meals').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false });
+  state.favoriteMeals = data || [];
+  return state.favoriteMeals;
+}
+
+function openFavoritesSheet() {
+  const existing = document.getElementById('favoritesModal');
+  if (existing) existing.remove();
+  const modal = document.createElement('div');
+  modal.id = 'favoritesModal';
+  modal.className = 'log-modal active';
+  modal.innerHTML = '<div class="log-sheet" style="max-height:80vh;overflow-y:auto;"><div class="sheet-handle"></div><div style="font-family:var(--fd);font-weight:700;font-size:1.1rem;margin-bottom:1rem;">Favorite Meals</div><div id="favorites-list"><div style="text-align:center;color:var(--g5);font-size:0.875rem;padding:2rem 0;">Loading...</div></div><button onclick="document.getElementById('favoritesModal').remove()" style="width:100%;margin-top:1rem;padding:0.75rem;background:none;border:none;color:var(--g5);font-family:var(--fb);font-size:0.875rem;cursor:pointer;">Cancel</button></div>';
+  modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
+  document.getElementById('app').appendChild(modal);
+  loadFavoriteMeals().then(function(meals) {
+    const list = document.getElementById('favorites-list');
+    if (!list) return;
+    if (!meals.length) { list.innerHTML = '<div style="text-align:center;color:var(--g5);font-size:0.875rem;padding:2rem 0;">No favorites yet</div>'; return; }
+    list.innerHTML = meals.map(function(m, i) {
+      return '<div onclick="useFavoriteMeal(' + i + ')" style="background:var(--g2);border:1px solid var(--g3);border-radius:14px;padding:1rem;margin-bottom:0.5rem;cursor:pointer;display:flex;justify-content:space-between;align-items:center;"><div><div style="font-size:0.9rem;font-weight:500;margin-bottom:2px;">' + m.name + '</div><div style="font-size:0.72rem;color:var(--g5);">' + Math.round(m.total_protein_g||0) + 'g P · ' + Math.round(m.total_calories||0) + ' cal</div></div><div style="color:var(--accent);font-size:1.2rem;">→</div></div>';
+    }).join('');
+  });
+}
+
+async function useFavoriteMeal(index) {
+  const meals = await loadFavoriteMeals();
+  const meal = meals[index];
+  if (!meal) return;
+  const item = (meal.items || [])[0] || {};
+  document.getElementById('favoritesModal')?.remove();
+  openFoodLogger();
+  setTimeout(function() {
+    const f = function(id, val) { const el = document.getElementById(id); if (el && val != null) el.value = val; };
+    f('food-name-input', meal.name);
+    f('food-cals', item.calories || meal.total_calories || '');
+    f('food-protein', item.protein_g || meal.total_protein_g || '');
+    f('food-carbs', item.carbs_g || meal.total_carbs_g || '');
+    f('food-fat', item.fat_g || meal.total_fat_g || '');
+    f('food-sugar', item.sugar_g || '');
+    const mt = document.getElementById('food-meal-type');
+    if (mt && meal.meal_type) mt.value = meal.meal_type;
+  }, 300);
 }
 
 function handleSetCheck(el, exerciseName, setNum) {
