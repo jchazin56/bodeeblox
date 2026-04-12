@@ -515,7 +515,7 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  min-height: 0;
+  min-height: 300px;
 }
 
 .msg-bubble {
@@ -541,17 +541,18 @@ html, body {
 }
 
 .coach-input-bar {
-  flex-shrink: 0;
+  position: sticky;
+  bottom: 0;
   background: rgba(10,10,11,0.97);
   backdrop-filter: blur(16px);
   border-top: 1px solid var(--g3);
-  padding: 0.625rem 0.75rem;
+  padding: 0.75rem 1rem;
   display: flex;
   gap: 0.5rem;
   align-items: center;
   box-sizing: border-box;
-  width: 100%;
-  overflow: hidden;
+  z-index: 40;
+  margin-bottom: 0;
 }
 
 .coach-input {
@@ -1167,7 +1168,7 @@ html, body {
   </div>
 
   <!-- ===== COACH SCREEN ===== -->
-  <div class="screen" id="screen-coach" style="display:none;flex-direction:column;overflow:hidden;padding-bottom:0;">
+  <div class="screen" id="screen-coach">
     <div class="screen-header" style="padding-top:1.25rem;flex-shrink:0;">
       <div>
         <div class="screen-title">Coach</div>
@@ -1661,22 +1662,9 @@ function switchAuthTab(tab) {
 
 // ===== APP NAVIGATION =====
 function switchScreen(name, el) {
-  document.querySelectorAll('.screen').forEach(s => {
-    s.classList.remove('active');
-    s.style.display = 'none';
-  });
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  const screen = document.getElementById('screen-' + name);
-  screen.classList.add('active');
-  if (name === 'coach') {
-    screen.style.display = 'flex';
-    screen.style.flexDirection = 'column';
-    screen.style.height = 'calc(100dvh - var(--nav-h))';
-    screen.style.paddingBottom = '0';
-  } else {
-    screen.style.display = 'block';
-    screen.style.height = '';
-  }
+  document.getElementById('screen-' + name).classList.add('active');
   if (el) el.classList.add('active');
 }
 
