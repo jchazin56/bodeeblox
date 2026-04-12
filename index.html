@@ -556,15 +556,17 @@ html, body {
   align-items: center;
   z-index: 40;
   box-sizing: border-box;
+  height: 60px;
 }
 
 .coach-input {
   flex: 1;
   min-width: 0;
+  height: 40px;
   background: var(--g2);
   border: 1px solid var(--g3);
   border-radius: 12px;
-  padding: 0.7rem 0.875rem;
+  padding: 0 0.875rem;
   font-family: var(--fb);
   font-size: 0.875rem;
   color: var(--white);
@@ -2424,6 +2426,23 @@ document.querySelectorAll('.log-option').forEach((opt, i) => {
 
 // Wire sign out button
 document.querySelector('.settings-item:last-child').addEventListener('click', handleSignOut);
+
+// Fix iOS keyboard pushing layout
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', () => {
+    const bar = document.querySelector('.coach-input-bar');
+    if (!bar) return;
+    const navH = 72;
+    const viewportBottom = window.innerHeight - window.visualViewport.height;
+    if (viewportBottom > 100) {
+      // Keyboard is open
+      bar.style.bottom = (window.innerHeight - window.visualViewport.height + navH) + 'px';
+    } else {
+      // Keyboard closed
+      bar.style.bottom = '';
+    }
+  });
+}
 
 // Boot
 initAuth();
