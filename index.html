@@ -2446,6 +2446,11 @@ async function loadFavoriteMeals() {
   return state.favoriteMeals;
 }
 
+function closeFavoritesModal() {
+  const m = document.getElementById('favoritesModal');
+  if (m) m.remove();
+}
+
 function openFavoritesSheet() {
   const existing = document.getElementById('favoritesModal');
   if (existing) existing.remove();
