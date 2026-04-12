@@ -507,8 +507,8 @@ html, body {
   border-bottom: 1px solid var(--g3);
 }
 .meal-item:last-child { border-bottom: none; padding-bottom: 0; }
-.meal-name { font-size: 0.875rem; flex: 1; min-width: 0; }
-.meal-cals { font-size: 0.8rem; color: var(--g5); white-space: nowrap; flex-shrink: 0; }
+.meal-name { font-size: 0.875rem; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.meal-cals { font-size: 0.8rem; color: var(--g5); white-space: nowrap; flex-shrink: 0; text-align: right; }
 
 /* ===================== COACH SCREEN ===================== */
 .coach-messages {
