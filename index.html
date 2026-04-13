@@ -552,30 +552,18 @@ function foodSearch(query) {
   sug.style.display = 'block';
   foodSearchTimer = setTimeout(() => claudeFoodLookup(query), 700);
 }
-
 async function claudeFoodLookup(query) {
   const sug = document.getElementById('food-suggestions');
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-     headers: {
-  'Content-Type': 'application/json',
-   'anthropic-version': '2023-06-01',
-  'anthropic-dangerous-direct-browser-access': 'true'
-},
-     body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 600,
-        system: `You are a nutrition database. Return ONLY a valid JSON array — no markdown, no explanation, no backticks. Format: [{"name":"Food Name","calories":000,"protein":00,"carbs":00,"fat":00,"serving":"e.g. 1 cup (240g)"}]. Give 1-4 options with realistic nutrition estimates.`,
-        messages: [{ role: 'user', content: `Nutrition for: "${query}"` }]
-      })
-    });
-    if (!res.ok) { sug.style.display = 'none'; return; }
-    const data = await res.json();
-    const text = data.content?.[0]?.text || '[]';
-    const foods = JSON.parse(text.trim());
-    if (!foods.length) { sug.style.display = 'none'; return; }
-    sug.innerHTML = foods.map((f, i) =>
+    const res = await fetch('/.netlify/functions/food-lookup', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ query })
+});
+if (!res.ok) { sug.style.display = 'none'; return; }
+const foods = await res.json();
+if (!foods.length) { sug.style.display = 'none'; return; }
+   sug.innerHTML = foods.map((f, i) =>
       `<div data-idx="${i}" style="padding:0.75rem 1rem;border-bottom:1px solid var(--g3);cursor:pointer;">
         <div style="font-size:0.85rem;font-weight:500;color:var(--white);">${f.name}</div>
         <div style="font-size:0.72rem;color:var(--g5);margin-top:2px;">${f.calories} cal · ${f.protein}g protein · ${f.carbs}g carbs · ${f.fat}g fat · <span style="color:var(--g4);">${f.serving}</span></div>
