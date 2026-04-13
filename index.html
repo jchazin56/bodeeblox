@@ -558,11 +558,13 @@ async function claudeFoodLookup(query) {
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
+     headers: {
+  'Content-Type': 'application/json',
+  'x-api-key': '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',
+  'anthropic-version': '2023-06-01',
+  'anthropic-dangerous-direct-browser-access': 'true'
+},
+     body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 600,
         system: `You are a nutrition database. Return ONLY a valid JSON array — no markdown, no explanation, no backticks. Format: [{"name":"Food Name","calories":000,"protein":00,"carbs":00,"fat":00,"serving":"e.g. 1 cup (240g)"}]. Give 1-4 options with realistic nutrition estimates.`,
