@@ -134,6 +134,8 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
 .meal-cals { font-size: 0.78rem; color: var(--g5); }
 .meal-delete { font-size: 14px; cursor: pointer; color: var(--g4); padding-left: 8px; }
 .meal-delete:active { color: var(--danger); }
+#food-suggestions div:hover { background: var(--g3); }
+#food-suggestions div:last-child { border-bottom: none; }
 .empty-state { text-align: center; padding: 2rem 1.25rem; color: var(--g5); font-size: 0.875rem; }
 
 /* COACH */
@@ -390,14 +392,19 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
     <div class="modal-sheet">
       <div class="sheet-handle"></div>
       <div class="sheet-title">Log Food</div>
-      <input class="sheet-input" id="food-name" type="text" placeholder="Food name (e.g. Chicken breast 200g)">
-      <div class="sheet-grid">
-        <input class="sheet-input" id="food-calories" type="number" placeholder="Calories" inputmode="decimal" style="margin-bottom:0;">
-        <input class="sheet-input" id="food-protein" type="number" placeholder="Protein (g)" inputmode="decimal" style="margin-bottom:0;">
+      <div style="position:relative;margin-bottom:0.75rem;">
+        <input class="sheet-input" id="food-name" type="text" placeholder="Search food (e.g. chicken breast)..." autocomplete="off" oninput="foodSearch(this.value)" style="margin-bottom:0;">
+        <div id="food-suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--g2);border:1px solid var(--g3);border-radius:12px;z-index:10;max-height:180px;overflow-y:auto;margin-top:4px;"></div>
       </div>
-      <div class="sheet-grid">
-        <input class="sheet-input" id="food-carbs" type="number" placeholder="Carbs (g)" inputmode="decimal" style="margin-bottom:0;">
-        <input class="sheet-input" id="food-fat" type="number" placeholder="Fat (g)" inputmode="decimal" style="margin-bottom:0;">
+      <div id="food-macro-fields">
+        <div class="sheet-grid">
+          <input class="sheet-input" id="food-calories" type="number" placeholder="Calories" inputmode="decimal" style="margin-bottom:0;">
+          <input class="sheet-input" id="food-protein" type="number" placeholder="Protein (g)" inputmode="decimal" style="margin-bottom:0;">
+        </div>
+        <div class="sheet-grid">
+          <input class="sheet-input" id="food-carbs" type="number" placeholder="Carbs (g)" inputmode="decimal" style="margin-bottom:0;">
+          <input class="sheet-input" id="food-fat" type="number" placeholder="Fat (g)" inputmode="decimal" style="margin-bottom:0;">
+        </div>
       </div>
       <select class="sheet-select" id="food-meal-type">
         <option value="Breakfast">Breakfast</option>
@@ -533,6 +540,44 @@ async function deleteFood(id) {
   await loadNutrition(); await loadTodayData();
 }
 
+// FOOD SEARCH
+const USDA_KEY = 'DEMO_KEY';
+let foodSearchTimer = null;
+
+function foodSearch(query) {
+  clearTimeout(foodSearchTimer);
+  const sug = document.getElementById('food-suggestions');
+  if (query.length < 2) { sug.style.display = 'none'; return; }
+  foodSearchTimer = setTimeout(async () => {
+    try {
+      const res = await fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&pageSize=6&api_key=${USDA_KEY}`);
+      const data = await res.json();
+      const foods = data.foods || [];
+      if (!foods.length) { sug.style.display = 'none'; return; }
+      sug.innerHTML = foods.map(f => {
+        const nut = f.foodNutrients || [];
+        const get = name => Math.round(nut.find(n => n.nutrientName?.toLowerCase().includes(name))?.value || 0);
+        const cal = get('energy'), pro = get('protein'), carb = get('carbohydrate'), fat = get('total lipid');
+        return `<div onclick="selectFood('${f.description.replace(/'/g,"\\'")}',${cal},${pro},${carb},${fat})"
+          style="padding:0.75rem 1rem;border-bottom:1px solid var(--g3);cursor:pointer;font-size:0.85rem;">
+          <div style="font-weight:500;color:var(--white);">${f.description}</div>
+          <div style="font-size:0.72rem;color:var(--g5);margin-top:2px;">${cal} cal · ${pro}g protein · ${carb}g carbs · ${fat}g fat <span style="color:var(--g4);">per 100g</span></div>
+        </div>`;
+      }).join('');
+      sug.style.display = 'block';
+    } catch(e) { sug.style.display = 'none'; }
+  }, 400);
+}
+
+function selectFood(name, cal, pro, carb, fat) {
+  document.getElementById('food-name').value = name;
+  document.getElementById('food-calories').value = cal;
+  document.getElementById('food-protein').value = pro;
+  document.getElementById('food-carbs').value = carb;
+  document.getElementById('food-fat').value = fat;
+  document.getElementById('food-suggestions').style.display = 'none';
+}
+
 async function saveFood() {
   const name = document.getElementById('food-name').value.trim();
   if (!name) return showToast('Enter a food name', 'error');
@@ -654,7 +699,12 @@ function switchScreen(name, el) {
 }
 
 function openModal(id) { document.getElementById(id).classList.add('active'); }
-function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+function closeModal(id) {
+  document.getElementById(id).classList.remove('active');
+  if (id === 'foodModal') {
+    document.getElementById('food-suggestions').style.display = 'none';
+  }
+}
 
 function toggleEx(id) {
   const s=document.getElementById(id+'-sets'); if(!s) return;
