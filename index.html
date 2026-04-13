@@ -136,6 +136,9 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
 .meal-delete:active { color: var(--danger); }
 #food-suggestions div:hover { background: var(--g3); }
 #food-suggestions div:last-child { border-bottom: none; }
+.food-suggestion-item { padding: 0.75rem 1rem; border-bottom: 1px solid var(--g3); cursor: pointer; }
+.food-suggestion-name { font-size: 0.85rem; font-weight: 500; color: var(--white); }
+.food-suggestion-meta { font-size: 0.72rem; color: var(--g5); margin-top: 2px; }
 .empty-state { text-align: center; padding: 2rem 1.25rem; color: var(--g5); font-size: 0.875rem; }
 
 /* COACH */
@@ -567,9 +570,9 @@ async function claudeFoodLookup(query) {
     const foods = await res.json();
     if (!foods.length) { sug.style.display = 'none'; return; }
     sug.innerHTML = foods.map((f, i) =>
-      `<div data-idx="${i}" style="padding:0.75rem 1rem;border-bottom:1px solid var(--g3);cursor:pointer;">
-        <div style="font-size:0.85rem;font-weight:500;color:var(--white);">${f.name}</div>
-        <div style="font-size:0.72rem;color:var(--g5);margin-top:2px;">${f.calories} cal · ${f.protein}g protein · ${f.carbs}g carbs · ${f.fat}g fat · <span style="color:var(--g4);">${f.serving}</span></div>
+      `<div data-idx="${i}" class="food-suggestion-item">
+        <div class="food-suggestion-name">${f.name}</div>
+        <div class="food-suggestion-meta">${f.calories} cal · ${f.protein}g protein · ${f.carbs}g carbs · ${f.fat}g fat · ${f.serving}</div>
       </div>`
     ).join('');
     sug.style.display = 'block';
