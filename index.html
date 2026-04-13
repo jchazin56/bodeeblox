@@ -397,6 +397,7 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
         <div id="food-suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--g2);border:1px solid var(--g3);border-radius:12px;z-index:10;max-height:180px;overflow-y:auto;margin-top:4px;"></div>
       </div>
       <div id="food-macro-fields">
+        <div style="font-size:0.72rem;color:var(--g5);margin-bottom:0.5rem;">Enter macros manually or type a food above to look up</div>
         <div class="sheet-grid">
           <input class="sheet-input" id="food-calories" type="number" placeholder="Calories" inputmode="decimal" style="margin-bottom:0;">
           <input class="sheet-input" id="food-protein" type="number" placeholder="Protein (g)" inputmode="decimal" style="margin-bottom:0;">
@@ -565,6 +566,7 @@ async function claudeFoodLookup(query) {
         messages: [{ role: 'user', content: `Nutrition for: "${query}"` }]
       })
     });
+    if (!res.ok) { sug.style.display = 'none'; return; }
     const data = await res.json();
     const text = data.content?.[0]?.text || '[]';
     const foods = JSON.parse(text.trim());
@@ -578,7 +580,8 @@ async function claudeFoodLookup(query) {
     ).join('');
     sug.style.display = 'block';
   } catch(e) {
-    sug.innerHTML = '<div style="padding:0.75rem 1rem;font-size:0.82rem;color:var(--g5);">Couldn\'t look up — enter macros manually.</div>';
+    // Silently fail — macro fields below are always available for manual entry
+    sug.style.display = 'none';
   }
 }
 
