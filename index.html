@@ -377,7 +377,7 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
   <div class="modal-overlay" id="logModal" onclick="if(event.target===this)closeModal('logModal')">
     <div class="modal-sheet">
       <div class="sheet-handle"></div>
-      <div class="sheet-title">What are you logging?</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;"><div class="sheet-title" style="margin-bottom:0;">What are you logging?</div><button onclick="closeModal('logModal')" style="background:var(--g3);border:none;color:var(--g5);width:28px;height:28px;border-radius:50%;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button></div>
       <div class="log-options">
         <div class="log-option" onclick="closeModal('logModal');switchScreen('workout',null);"><div class="lo-icon">🏋️</div><div class="lo-title">Workout</div><div class="lo-sub">Log a set or session</div></div>
         <div class="log-option" onclick="closeModal('logModal');openModal('foodModal');"><div class="lo-icon">🥗</div><div class="lo-title">Food</div><div class="lo-sub">Meal, snack, or drink</div></div>
@@ -391,7 +391,7 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
   <div class="modal-overlay" id="foodModal" onclick="if(event.target===this)closeModal('foodModal')">
     <div class="modal-sheet">
       <div class="sheet-handle"></div>
-      <div class="sheet-title">Log Food</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;"><div class="sheet-title" style="margin-bottom:0;">Log Food</div><button onclick="closeModal('foodModal')" style="background:var(--g3);border:none;color:var(--g5);width:28px;height:28px;border-radius:50%;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button></div>
       <div style="position:relative;margin-bottom:0.75rem;">
         <input class="sheet-input" id="food-name" type="text" placeholder="Search food (e.g. chicken breast)..." autocomplete="off" oninput="foodSearch(this.value)" style="margin-bottom:0;">
         <div id="food-suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--g2);border:1px solid var(--g3);border-radius:12px;z-index:10;max-height:180px;overflow-y:auto;margin-top:4px;"></div>
@@ -422,7 +422,7 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
   <div class="modal-overlay" id="weightModal" onclick="if(event.target===this)closeModal('weightModal')">
     <div class="modal-sheet">
       <div class="sheet-handle"></div>
-      <div class="sheet-title">Log Body Weight</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;"><div class="sheet-title" style="margin-bottom:0;">Log Body Weight</div><button onclick="closeModal('weightModal')" style="background:var(--g3);border:none;color:var(--g5);width:28px;height:28px;border-radius:50%;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button></div>
       <input class="sheet-input" id="weight-val" type="number" placeholder="Weight in lbs" inputmode="decimal" step="0.1">
       <input class="sheet-input" id="bf-val" type="number" placeholder="Body fat % (optional)" inputmode="decimal" step="0.1">
       <button class="sheet-save" onclick="saveBodyWeight()">Save</button>
@@ -541,32 +541,45 @@ async function deleteFood(id) {
 }
 
 // FOOD SEARCH
-const USDA_KEY = 'DEMO_KEY';
 let foodSearchTimer = null;
 
 function foodSearch(query) {
   clearTimeout(foodSearchTimer);
   const sug = document.getElementById('food-suggestions');
-  if (query.length < 2) { sug.style.display = 'none'; return; }
-  foodSearchTimer = setTimeout(async () => {
-    try {
-      const res = await fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&pageSize=6&api_key=${USDA_KEY}`);
-      const data = await res.json();
-      const foods = data.foods || [];
-      if (!foods.length) { sug.style.display = 'none'; return; }
-      sug.innerHTML = foods.map(f => {
-        const nut = f.foodNutrients || [];
-        const get = name => Math.round(nut.find(n => n.nutrientName?.toLowerCase().includes(name))?.value || 0);
-        const cal = get('energy'), pro = get('protein'), carb = get('carbohydrate'), fat = get('total lipid');
-        return `<div onclick="selectFood('${f.description.replace(/'/g,"\\'")}',${cal},${pro},${carb},${fat})"
-          style="padding:0.75rem 1rem;border-bottom:1px solid var(--g3);cursor:pointer;font-size:0.85rem;">
-          <div style="font-weight:500;color:var(--white);">${f.description}</div>
-          <div style="font-size:0.72rem;color:var(--g5);margin-top:2px;">${cal} cal · ${pro}g protein · ${carb}g carbs · ${fat}g fat <span style="color:var(--g4);">per 100g</span></div>
-        </div>`;
-      }).join('');
-      sug.style.display = 'block';
-    } catch(e) { sug.style.display = 'none'; }
-  }, 400);
+  if (query.length < 3) { sug.style.display = 'none'; return; }
+  sug.innerHTML = '<div style="padding:0.75rem 1rem;font-size:0.82rem;color:var(--g5);">Looking up nutrition...</div>';
+  sug.style.display = 'block';
+  foodSearchTimer = setTimeout(() => claudeFoodLookup(query), 700);
+}
+
+async function claudeFoodLookup(query) {
+  const sug = document.getElementById('food-suggestions');
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 600,
+        system: `You are a nutrition database. Return ONLY a valid JSON array — no markdown, no explanation, no backticks. Format: [{"name":"Food Name","calories":000,"protein":00,"carbs":00,"fat":00,"serving":"e.g. 1 cup (240g)"}]. Give 1-4 options with realistic nutrition estimates.`,
+        messages: [{ role: 'user', content: `Nutrition for: "${query}"` }]
+      })
+    });
+    const data = await res.json();
+    const text = data.content?.[0]?.text || '[]';
+    const foods = JSON.parse(text.trim());
+    if (!foods.length) { sug.style.display = 'none'; return; }
+    sug.innerHTML = foods.map(f =>
+      `<div onclick="selectFood('${(f.name||'').replace(/'/g,'\&apos;')}',${f.calories||0},${f.protein||0},${f.carbs||0},${f.fat||0})"
+        style="padding:0.75rem 1rem;border-bottom:1px solid var(--g3);cursor:pointer;">
+        <div style="font-size:0.85rem;font-weight:500;color:var(--white);">${f.name}</div>
+        <div style="font-size:0.72rem;color:var(--g5);margin-top:2px;">${f.calories} cal · ${f.protein}g protein · ${f.carbs}g carbs · ${f.fat}g fat · <span style="color:var(--g4);">${f.serving}</span></div>
+      </div>`
+    ).join('');
+    sug.style.display = 'block';
+  } catch(e) {
+    sug.innerHTML = '<div style="padding:0.75rem 1rem;font-size:0.82rem;color:var(--g5);">Couldn\'t look up — enter macros manually.</div>';
+  }
 }
 
 function selectFood(name, cal, pro, carb, fat) {
