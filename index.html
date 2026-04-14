@@ -2198,7 +2198,8 @@ async function sendCoachMsg() {
         })
       });
 
-      const data = await response.json();
+      const data = await response.json(); const textBlock = data.content?.find(b => b.type === 'text');
+if (textBlock?.text) finalReply += (finalReply ? '\n' : '') + textBlock.text;
 
       if (data.stop_reason === 'tool_use') {
         // Execute each tool call
@@ -2212,12 +2213,10 @@ async function sendCoachMsg() {
         // Add assistant response and tool results to messages
         messages = [...messages, { role: 'assistant', content: data.content }, { role: 'user', content: toolResults }];
       } else {
-        // Final text response
-        finalReply = data.content?.find(b => b.type === 'text')?.text || 'Done.';
         continueLoop = false;
       }
     }
-
+if (!finalReply) finalReply = 'Got it — done!';
     document.getElementById('typing-indicator')?.remove();
 
     const aiMsg = document.createElement('div');
