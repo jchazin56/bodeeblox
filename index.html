@@ -54,7 +54,9 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
 /* APP */
 #app { display: none; height: 100vh; height: 100dvh; flex-direction: column; max-width: 430px; margin: 0 auto; position: relative; overflow: hidden; }
 .screen { display: none; flex: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 1rem); scrollbar-width: none; }
-#screen-coach { overflow: hidden; padding-bottom: 0; }
+#screen-coach { overflow: hidden; padding-bottom: 0; display: flex; flex-direction: column; }
+#screen-coach .coach-messages { flex: 1; overflow-y: auto; min-height: 0; padding-bottom: 1rem; }
+#screen-coach .coach-input-bar { position: relative; bottom: auto; flex-shrink: 0; margin-bottom: calc(var(--nav-h) + var(--safe-bottom)); }
 .screen::-webkit-scrollbar { display: none; }
 .screen.active { display: block; animation: fadeIn 0.2s ease; }
 
