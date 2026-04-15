@@ -800,17 +800,17 @@ async function loadTodayData() {
   const today = todayStr();
   const [{ data: nut }, { data: ws }] = await Promise.all([
     sb.from('nutrition_logs').select('*').eq('user_id', currentUser.id).eq('date', today),
-    sb.from('body_stats').select('*').eq('user_id', currentUser.id).order('date', {ascending:false}).limit(1)
+    sb.from('body_stats').select('*').eq('user_id', currentUser.id).order('logged_date', {ascending:false}).limit(1)
   ]);
   todayNutrition = nut || [];
   updateNutritionUI(todayNutrition);
   if (ws?.length) {
     const w = ws[0];
-    setText('stat-weight', w.weight ? w.weight.toFixed(1) : '—');
-    setText('stat-weight-sub', w.date === today ? 'Logged today ✓' : 'Tap to log today');
-    setText('prof-weight', w.weight ? w.weight.toFixed(1) : '—');
-    setText('prof-bf', w.body_fat ? w.body_fat.toFixed(1) + '%' : '—');
-    if (w.weight && w.body_fat) setText('prof-lean', (w.weight*(1-w.body_fat/100)).toFixed(1));
+    setText('stat-weight', w.weight_lbs ? w.weight_lbs.toFixed(1) : '—');
+    setText('stat-weight-sub', w.logged_date === today ? 'Logged today ✓' : 'Tap to log today');
+    setText('prof-weight', w.weight_lbs ? w.weight_lbs.toFixed(1) : '—');
+    setText('prof-bf', w.body_fat_pct ? w.body_fat_pct.toFixed(1) + '%' : '—');
+    if (w.weight_lbs && w.body_fat_pct) setText('prof-lean', (w.weight_lbs*(1-w.body_fat_pct/100)).toFixed(1));
   }
   generateInsight(todayNutrition);
 }
@@ -939,7 +939,7 @@ async function saveBodyWeight() {
   if (!w) return showToast('Enter a weight', 'error');
   const bf = parseFloat(document.getElementById('bf-val').value)||null;
   const lean = (w&&bf) ? parseFloat((w*(1-bf/100)).toFixed(1)) : null;
-  const { error } = await sb.from('body_stats').upsert({ user_id: currentUser.id, date: todayStr(), weight: w, body_fat: bf, lean_mass: lean }, {onConflict:'user_id,date'});
+  const { error } = await sb.from('body_stats').upsert({ user_id: currentUser.id, logged_date: todayStr(), weight_lbs: w, body_fat_pct: bf, lean_mass_lbs: lean }, {onConflict:'user_id,logged_date'});
   if (error) return showToast('Error saving', 'error');
   document.getElementById('weight-val').value=''; document.getElementById('bf-val').value='';
   closeModal('weightModal');
@@ -1205,9 +1205,9 @@ async function saveOnboarding() {
     if (error) throw error;
     if (obData.weight) {
       await sb.from('body_stats').upsert({
-        user_id: currentUser.id, date: todayStr(), weight: obData.weight,
-        body_fat: obData.bf, lean_mass: obData.bf ? parseFloat((obData.weight*(1-obData.bf/100)).toFixed(1)) : null
-      }, { onConflict: 'user_id,date' });
+        user_id: currentUser.id, logged_date: todayStr(), weight_lbs: obData.weight,
+        body_fat_pct: obData.bf, lean_mass_lbs: obData.bf ? parseFloat((obData.weight*(1-obData.bf/100)).toFixed(1)) : null
+      }, { onConflict: 'user_id,logged_date' });
     }
     hideOnboarding();
     await loadApp();
