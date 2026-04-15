@@ -393,7 +393,7 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
       <div class="sheet-handle"></div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;"><div class="sheet-title" style="margin-bottom:0;">Log Food</div><button onclick="closeModal('foodModal')" style="background:var(--g3);border:none;color:var(--g5);width:28px;height:28px;border-radius:50%;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button></div>
       <div style="position:relative;margin-bottom:0.75rem;">
-        <input class="sheet-input" id="food-name" type="text" placeholder="Search food (e.g. chicken breast)..." autocomplete="off" oninput="foodSearch(this.value)" style="margin-bottom:0;">
+        <input class="sheet-input" id="food-name" type="text" placeholder="Search food (e.g. chicken breast)..." autocomplete="off" style="margin-bottom:0;">
         <div id="food-suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--g2);border:1px solid var(--g3);border-radius:12px;z-index:10;max-height:180px;overflow-y:auto;margin-top:4px;"></div>
       </div>
       <div id="food-macro-fields">
@@ -826,6 +826,7 @@ Be concise, direct, and specific. Use their actual numbers. No fluff. Talk like 
 
 document.getElementById('coachInput').addEventListener('keydown', e => { if (e.key === 'Enter') sendCoachMsg(); });
 document.getElementById('signout-btn').addEventListener('click', ()=>sb.auth.signOut());
+document.getElementById('food-name').addEventListener('input', e => foodSearch(e.target.value));
 
 // HELPERS
 function setText(id, val) { const e=document.getElementById(id); if(e) e.textContent=val; }
