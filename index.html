@@ -556,7 +556,7 @@ function foodSearch(query) {
 async function claudeFoodLookup(query) {
   const sug = document.getElementById('food-suggestions');
   try {
-    const res = await fetch('/.netlify/functions/claude', {
+    const res = await fetch('//.netlify/functions/coach', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -804,7 +804,7 @@ Be concise, direct, and specific. Use their actual numbers. No fluff. Talk like 
     const messages = (history || []).reverse().map(m => ({ role: m.role, content: m.content }));
     messages.push({ role: 'user', content: text });
 
-    const res = await fetch('/.netlify/functions/claude', {
+    const res = await fetch('/.netlify/functions/coach', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
