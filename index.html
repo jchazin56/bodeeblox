@@ -943,6 +943,7 @@ async function saveBodyWeight() {
   if (error) return showToast('Error saving', 'error');
   document.getElementById('weight-val').value=''; document.getElementById('bf-val').value='';
   closeModal('weightModal');
+  closeModal('profileModal');
   showToast('Weight logged ✓', 'success');
   await loadTodayData();
 }
