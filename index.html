@@ -976,8 +976,9 @@ function buildForecast() {
 
 
 
-function openProfileModal() {
+async function openProfileModal() {
   if (!userProfile) return;
+  await loadTodayData();
   const goalLabels = { cut: 'Goal: Lose Fat 🔥', bulk: 'Goal: Build Muscle 💪', recomp: 'Goal: Recomposition ⚖️', maintain: 'Goal: Stay Healthy 🏃' };
   const name = userProfile.name || currentUser.email?.split('@')[0] || 'Athlete';
   const initials = name.slice(0,2).toUpperCase();
@@ -985,7 +986,7 @@ function openProfileModal() {
   setText('modal-name', name);
   setText('modal-email', currentUser.email || '');
   setText('modal-goal-label', goalLabels[userProfile.goal] || 'No goal set');
-  setText('modal-weight', userProfile.goal ? (document.getElementById('prof-weight').textContent || '—') : '—');
+  setText('modal-weight', document.getElementById('prof-weight').textContent || '—');
   setText('modal-bf', document.getElementById('prof-bf').textContent || '—');
   setText('modal-calories', userProfile.goal_calories ? userProfile.goal_calories.toLocaleString() + ' kcal' : '—');
   openModal('profileModal');
