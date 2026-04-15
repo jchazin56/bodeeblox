@@ -492,7 +492,7 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
   <div class="screen active" id="screen-home">
     <div class="screen-header" style="padding-top:1.25rem;">
       <div><div style="font-size:0.75rem;color:var(--g5);margin-bottom:2px;" id="home-greeting">Good morning</div><div class="screen-title" id="home-name">Loading...</div></div>
-      <div class="avatar" id="home-avatar">?</div>
+      <div class="avatar" id="home-avatar" onclick="openProfileModal()" style="cursor:pointer;" title="Profile">?</div>
     </div>
     <div class="ai-coach-card">
       <div class="ai-badge"><div class="ai-dot-live"></div> AI Coach · Today's Read</div>
@@ -600,10 +600,14 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
 
   <!-- PROFILE -->
   <div class="screen" id="screen-profile">
-    <div class="screen-header" style="padding-top:1.25rem;"><div class="screen-title">Profile</div></div>
+    <div class="screen-header" style="padding-top:1.25rem;">
+      <div class="screen-title">Profile</div>
+      <button onclick="openProfileModal()" style="background:var(--g2);border:1px solid var(--g3);color:var(--g5);border-radius:10px;padding:0.4rem 0.75rem;font-size:0.78rem;font-family:var(--fb);cursor:pointer;">Edit</button>
+    </div>
     <div class="profile-hero">
-      <div class="profile-avatar" id="profile-avatar">?</div>
-      <div><div style="font-family:var(--fd);font-weight:700;font-size:1.2rem;text-align:center;" id="profile-name">Loading...</div><div style="font-size:0.8rem;color:var(--g5);text-align:center;">Serious Athlete</div></div>
+      <div class="profile-avatar" id="profile-avatar" onclick="openProfileModal()" style="cursor:pointer;">?</div>
+      <div><div style="font-family:var(--fd);font-weight:700;font-size:1.2rem;text-align:center;" id="profile-name">Loading...</div>
+      <div style="font-size:0.8rem;color:var(--g5);text-align:center;" id="prof-goal-label">—</div></div>
       <div class="pill pill-green">↑ On Track</div>
     </div>
     <div class="body-stat-row">
@@ -611,11 +615,23 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
       <div class="body-stat"><div class="bs-val" id="prof-bf">—</div><div class="bs-label">Body Fat</div></div>
       <div class="body-stat"><div class="bs-val" id="prof-lean">—</div><div class="bs-label">Lean Mass</div></div>
     </div>
-    <div class="section-label" style="margin-top:0.5rem;">Settings</div>
+    <div class="section-label">Targets</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;padding:0 1.25rem;margin-bottom:0.5rem;">
+      <div class="body-stat"><div class="bs-val" id="prof-cal-target">—</div><div class="bs-label">Cal Target</div></div>
+      <div class="body-stat"><div class="bs-val" id="prof-pro-target">—</div><div class="bs-label">Protein Target</div></div>
+    </div>
+    <div class="section-label">Training</div>
+    <div class="card" style="margin-top:0;">
+      <div style="display:flex;flex-wrap:wrap;gap:0.4rem;" id="prof-training-tags"></div>
+    </div>
+    <div class="section-label">Supplements</div>
+    <div class="card" style="margin-top:0;">
+      <div style="display:flex;flex-wrap:wrap;gap:0.4rem;" id="prof-supp-tags"></div>
+    </div>
+    <div class="section-label">Quick Actions</div>
     <div class="settings-list">
       <div class="settings-item" onclick="openModal('weightModal')"><div class="si-left"><div class="si-icon">⚖️</div><div class="si-text">Log Body Weight</div></div><div class="si-arrow">›</div></div>
-      <div class="settings-item"><div class="si-left"><div class="si-icon">📊</div><div class="si-text">Body Scans & Progress</div></div><div class="si-arrow">›</div></div>
-      <div class="settings-item"><div class="si-left"><div class="si-icon">💊</div><div class="si-text">Supplements & Peptides</div></div><div class="si-arrow">›</div></div>
+      <div class="settings-item" onclick="openProfileModal()"><div class="si-left"><div class="si-icon">✏️</div><div class="si-text">Edit Profile & Goals</div></div><div class="si-arrow">›</div></div>
       <div class="settings-item"><div class="si-left"><div class="si-icon">🔔</div><div class="si-text">Notifications</div></div><div class="si-arrow">›</div></div>
       <div class="settings-item" id="signout-btn"><div class="si-left"><div class="si-icon">🚪</div><div class="si-text" style="color:var(--danger);">Sign Out</div></div><div class="si-arrow">›</div></div>
     </div>
@@ -630,6 +646,46 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
     <div class="nav-item" onclick="switchScreen('nutrition',this);loadNutrition();"><div class="nav-pip"></div><div class="nav-icon">🥗</div><div class="nav-label">Nutrition</div></div>
     <div class="nav-item" onclick="switchScreen('coach',this);loadCoachHistory();"><div class="nav-pip"></div><div class="nav-icon">🤖</div><div class="nav-label">Coach</div></div>
   </nav>
+
+
+  <!-- PROFILE MODAL -->
+  <div class="modal-overlay" id="profileModal" onclick="if(event.target===this)closeModal('profileModal')">
+    <div class="modal-sheet">
+      <div class="sheet-handle"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+        <div class="sheet-title" style="margin-bottom:0;">Your Profile</div>
+        <button onclick="closeModal('profileModal')" style="background:var(--g3);border:none;color:var(--g5);width:28px;height:28px;border-radius:50%;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.25rem;padding:1rem;background:var(--g2);border-radius:14px;">
+        <div class="profile-avatar" id="modal-avatar" style="width:52px;height:52px;font-size:1.1rem;flex-shrink:0;">?</div>
+        <div>
+          <div style="font-family:var(--fd);font-weight:700;font-size:1rem;" id="modal-name">—</div>
+          <div style="font-size:0.75rem;color:var(--g5);margin-top:2px;" id="modal-email">—</div>
+          <div style="font-size:0.72rem;color:var(--accent);margin-top:4px;" id="modal-goal-label">—</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;margin-bottom:1.25rem;">
+        <div style="background:var(--g2);border-radius:12px;padding:0.75rem;text-align:center;">
+          <div style="font-family:var(--fd);font-weight:700;font-size:1rem;color:var(--accent);" id="modal-weight">—</div>
+          <div style="font-size:0.62rem;color:var(--g5);text-transform:uppercase;letter-spacing:0.06em;margin-top:2px;">Weight</div>
+        </div>
+        <div style="background:var(--g2);border-radius:12px;padding:0.75rem;text-align:center;">
+          <div style="font-family:var(--fd);font-weight:700;font-size:1rem;" id="modal-bf">—</div>
+          <div style="font-size:0.62rem;color:var(--g5);text-transform:uppercase;letter-spacing:0.06em;margin-top:2px;">Body Fat</div>
+        </div>
+        <div style="background:var(--g2);border-radius:12px;padding:0.75rem;text-align:center;">
+          <div style="font-family:var(--fd);font-weight:700;font-size:1rem;" id="modal-calories">—</div>
+          <div style="font-size:0.62rem;color:var(--g5);text-transform:uppercase;letter-spacing:0.06em;margin-top:2px;">Cal Goal</div>
+        </div>
+      </div>
+      <div class="settings-list" style="margin:0 0 1rem;">
+        <div class="settings-item" onclick="closeModal('profileModal');openModal('weightModal');"><div class="si-left"><div class="si-icon">⚖️</div><div class="si-text">Log Body Weight</div></div><div class="si-arrow">›</div></div>
+        <div class="settings-item" onclick="closeModal('profileModal');startEditProfile();"><div class="si-left"><div class="si-icon">✏️</div><div class="si-text">Edit Profile & Goals</div></div><div class="si-arrow">›</div></div>
+        <div class="settings-item" onclick="switchScreen('profile',null);closeModal('profileModal');"><div class="si-left"><div class="si-icon">👤</div><div class="si-text">Full Profile</div></div><div class="si-arrow">›</div></div>
+      </div>
+      <button onclick="sb.auth.signOut();closeModal('profileModal');" style="width:100%;background:rgba(255,95,87,0.1);border:1px solid rgba(255,95,87,0.2);color:var(--danger);border-radius:12px;padding:0.875rem;font-family:var(--fb);font-size:0.9rem;cursor:pointer;">Sign Out</button>
+    </div>
+  </div>
 
   <!-- LOG MODAL -->
   <div class="modal-overlay" id="logModal" onclick="if(event.target===this)closeModal('logModal')">
@@ -737,6 +793,7 @@ async function loadProfile() {
   setText('home-avatar', initials);
   setText('profile-avatar', initials);
   setText('profile-name', name);
+  updateProfileScreen();
 }
 
 async function loadTodayData() {
@@ -916,6 +973,75 @@ function buildForecast() {
   }).join('');
 }
 
+
+
+function openProfileModal() {
+  if (!userProfile) return;
+  const goalLabels = { cut: 'Goal: Lose Fat 🔥', bulk: 'Goal: Build Muscle 💪', recomp: 'Goal: Recomposition ⚖️', maintain: 'Goal: Stay Healthy 🏃' };
+  const name = userProfile.name || currentUser.email?.split('@')[0] || 'Athlete';
+  const initials = name.slice(0,2).toUpperCase();
+  setText('modal-avatar', initials);
+  setText('modal-name', name);
+  setText('modal-email', currentUser.email || '');
+  setText('modal-goal-label', goalLabels[userProfile.goal] || 'No goal set');
+  setText('modal-weight', userProfile.goal ? (document.getElementById('prof-weight').textContent || '—') : '—');
+  setText('modal-bf', document.getElementById('prof-bf').textContent || '—');
+  setText('modal-calories', userProfile.goal_calories ? userProfile.goal_calories.toLocaleString() + ' kcal' : '—');
+  openModal('profileModal');
+}
+
+function startEditProfile() {
+  closeModal('profileModal');
+  // Re-use onboarding but pre-fill with existing data
+  if (userProfile) {
+    const el = id => document.getElementById(id);
+    if (el('ob-name')) el('ob-name').value = userProfile.name || '';
+    if (el('ob-age')) el('ob-age').value = userProfile.age || '';
+    if (el('ob-sex')) el('ob-sex').value = userProfile.sex || '';
+    if (userProfile.height_inches) {
+      el('ob-feet').value = Math.floor(userProfile.height_inches / 12);
+      el('ob-inches').value = userProfile.height_inches % 12;
+    }
+    if (el('ob-weight')) el('ob-weight').value = userProfile.weight || '';
+    if (userProfile.goal) selectGoal(userProfile.goal);
+  }
+  showOnboarding();
+}
+
+function updateProfileScreen() {
+  if (!userProfile) return;
+  const goalLabels = { cut: 'Lose Fat 🔥', bulk: 'Build Muscle 💪', recomp: 'Recomposition ⚖️', maintain: 'Stay Healthy 🏃' };
+  setText('prof-goal-label', goalLabels[userProfile.goal] || 'No goal set');
+  setText('prof-cal-target', userProfile.goal_calories ? userProfile.goal_calories.toLocaleString() : '—');
+  setText('prof-pro-target', userProfile.goal_protein ? userProfile.goal_protein + 'g' : '—');
+
+  // Training tags
+  const trainingEl = document.getElementById('prof-training-tags');
+  if (trainingEl) {
+    const parts = [];
+    if (userProfile.training_location) parts.push(userProfile.training_location === 'gym' ? '🏢 Gym' : '🏠 Home');
+    if (userProfile.training_days) parts.push('📅 ' + userProfile.training_days + 'x/week');
+    if (userProfile.session_duration) parts.push('⏱ ' + userProfile.session_duration + 'min');
+    if (userProfile.training_styles?.length) userProfile.training_styles.forEach(s => parts.push(s));
+    if (userProfile.injuries) parts.push('⚠️ ' + userProfile.injuries);
+    trainingEl.innerHTML = parts.length
+      ? parts.map(p => `<span class="pill pill-green" style="font-size:0.7rem;">${p}</span>`).join('')
+      : '<span style="font-size:0.8rem;color:var(--g5);">Not set — edit profile to add</span>';
+  }
+
+  // Supplement tags
+  const suppEl = document.getElementById('prof-supp-tags');
+  if (suppEl) {
+    const suppLabels = { protein_powder:'🥤 Protein', creatine:'⚡ Creatine', pre_workout:'🔥 Pre-Workout', omega3:'🐟 Omega-3', vitamin_d:'☀️ Vit D', magnesium:'🪨 Magnesium', multivitamin:'💊 Multi', peptides:'🧬 Peptides/TRT', none:'❌ None' };
+    const supps = userProfile.supplements || [];
+    const custom = userProfile.supplements_custom;
+    const all = supps.map(s => suppLabels[s] || s);
+    if (custom) all.push('➕ ' + custom);
+    suppEl.innerHTML = all.length
+      ? all.map(s => `<span class="pill" style="background:var(--g2);border:1px solid var(--g3);color:var(--g6);font-size:0.7rem;">${s}</span>`).join('')
+      : '<span style="font-size:0.8rem;color:var(--g5);">None logged</span>';
+  }
+}
 
 // ONBOARDING
 let obData = { goal: null, activity: null, trainingLoc: null, equipment: [], trainingStyles: [], supplements: [] };
