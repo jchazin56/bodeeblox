@@ -54,6 +54,7 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
 /* APP */
 #app { display: none; height: 100vh; height: 100dvh; flex-direction: column; max-width: 430px; margin: 0 auto; position: relative; overflow: hidden; }
 .screen { display: none; flex: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 1rem); scrollbar-width: none; }
+#screen-coach { overflow: hidden; padding-bottom: 0; }
 .screen::-webkit-scrollbar { display: none; }
 .screen.active { display: block; animation: fadeIn 0.2s ease; }
 
@@ -330,11 +331,19 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
   </div>
 
   <!-- COACH -->
-  <div class="screen" id="screen-coach">
-    <div class="screen-header" style="padding-top:1.25rem;"><div><div class="screen-title">Coach</div><div style="font-size:0.72rem;color:var(--accent);display:flex;align-items:center;gap:4px;margin-top:2px;"><div class="ai-dot-live" style="width:6px;height:6px;"></div> Knows your full history</div></div></div>
-    <div class="coach-messages" id="coach-msgs"></div>
+  <div class="screen" id="screen-coach" style="display:flex;flex-direction:column;">
+    <div class="screen-header" style="padding-top:1.25rem;flex-shrink:0;"><div><div class="screen-title">Coach</div><div style="font-size:0.72rem;color:var(--accent);display:flex;align-items:center;gap:4px;margin-top:2px;"><div class="ai-dot-live" style="width:6px;height:6px;"></div> Knows your full history</div></div></div>
+    <div class="coach-messages" id="coach-msgs" style="flex:1;overflow-y:auto;padding-bottom:0.5rem;"></div>
+    <div id="attach-preview" style="display:none;padding:0.5rem 1rem;background:var(--g2);border-top:1px solid var(--g3);">
+      <div style="display:flex;align-items:center;gap:0.5rem;">
+        <span id="attach-name" style="font-size:0.78rem;color:var(--g5);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+        <span style="font-size:0.78rem;color:var(--danger);cursor:pointer;" onclick="clearAttachment()">✕ Remove</span>
+      </div>
+      <img id="attach-img-preview" style="display:none;max-height:80px;border-radius:8px;margin-top:0.4rem;object-fit:cover;" />
+    </div>
     <div class="coach-input-bar">
-      <button class="voice-btn">🎙️</button>
+      <input type="file" id="fileInput" accept="image/*,application/pdf" style="display:none;">
+      <button class="voice-btn" onclick="document.getElementById('fileInput').click()">📎</button>
       <input class="coach-input" id="coachInput" placeholder="Ask your coach anything..." type="text">
       <button class="coach-send" onclick="sendCoachMsg()">↑</button>
     </div>
@@ -754,20 +763,61 @@ async function saveMsg(role, content) {
   await sb.from('coach_messages').insert({ user_id: currentUser.id, role, content });
 }
 
+let pendingAttachment = null;
+
+function clearAttachment() {
+  pendingAttachment = null;
+  document.getElementById('attach-preview').style.display = 'none';
+  document.getElementById('attach-img-preview').style.display = 'none';
+  document.getElementById('attach-name').textContent = '';
+  document.getElementById('fileInput').value = '';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('fileInput').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const base64 = ev.target.result.split(',')[1];
+      pendingAttachment = { name: file.name, type: file.type, base64 };
+      document.getElementById('attach-name').textContent = file.name;
+      document.getElementById('attach-preview').style.display = 'block';
+      if (file.type.startsWith('image/')) {
+        const img = document.getElementById('attach-img-preview');
+        img.src = ev.target.result;
+        img.style.display = 'block';
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+});
+
+function scrollCoachToBottom() {
+  const msgs = document.getElementById('coach-msgs');
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
 async function sendCoachMsg() {
   const input = document.getElementById('coachInput');
   const text = input.value.trim();
-  if (!text) return;
+  if (!text && !pendingAttachment) return;
   input.value = '';
-  appendMsg('user', text);
-  await saveMsg('user', text);
+
+  // Show user message
+  const userLabel = text + (pendingAttachment ? ` 📎 ${pendingAttachment.name}` : '');
+  appendMsg('user', userLabel);
+  await saveMsg('user', userLabel);
+
+  const attachment = pendingAttachment;
+  clearAttachment();
 
   const thinking = document.createElement('div');
   thinking.className = 'msg-bubble msg-ai';
   thinking.textContent = '...';
   thinking.id = 'thinking-bubble';
   document.getElementById('coach-msgs').appendChild(thinking);
-  document.getElementById('coach-msgs').scrollTop = 99999;
+  scrollCoachToBottom();
 
   try {
     const todayNut = todayNutrition.reduce((a, l) => ({
@@ -787,7 +837,7 @@ Today's nutrition so far:
 - Carbs: ${Math.round(todayNut.carb)}g
 - Fat: ${Math.round(todayNut.fat)}g
 
-Be concise, direct, and specific. Use their actual numbers. No fluff. Talk like a knowledgeable coach, not a chatbot.`;
+Be concise, direct, and specific. Use their actual numbers. No fluff. Talk like a knowledgeable coach, not a chatbot. When analyzing images or documents, be specific about what you see.`;
 
     const { data: history } = await sb.from('coach_messages')
       .select('role, content')
@@ -796,14 +846,28 @@ Be concise, direct, and specific. Use their actual numbers. No fluff. Talk like 
       .limit(10);
 
     const messages = (history || []).reverse().map(m => ({ role: m.role, content: m.content }));
-    messages.push({ role: 'user', content: text });
+
+    // Build user message content with optional attachment
+    let userContent;
+    if (attachment) {
+      userContent = [];
+      if (attachment.type.startsWith('image/')) {
+        userContent.push({ type: 'image', source: { type: 'base64', media_type: attachment.type, data: attachment.base64 } });
+      } else if (attachment.type === 'application/pdf') {
+        userContent.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: attachment.base64 } });
+      }
+      if (text) userContent.push({ type: 'text', text });
+    } else {
+      userContent = text;
+    }
+    messages.push({ role: 'user', content: userContent });
 
     const res = await fetch('/.netlify/functions/coach', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 400,
+        max_tokens: 600,
         system: systemPrompt,
         messages
       })
@@ -821,7 +885,7 @@ Be concise, direct, and specific. Use their actual numbers. No fluff. Talk like 
     thinking.removeAttribute('id');
   }
 
-  document.getElementById('coach-msgs').scrollTop = 99999;
+  scrollCoachToBottom();
 }
 
 document.getElementById('coachInput').addEventListener('keydown', e => { if (e.key === 'Enter') sendCoachMsg(); });
