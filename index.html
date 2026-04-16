@@ -1490,11 +1490,24 @@ async function loadCoachHistory() {
   msgs.scrollTop = msgs.scrollHeight;
 }
 
+function formatCoachText(text) {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/^- (.+)/gm, '• $1')
+    .replace(/
+/g, '<br>');
+}
+
 function appendMsg(role, text, scroll = true) {
   const msgs = document.getElementById('coach-msgs');
   const div = document.createElement('div');
   div.className = 'msg-bubble ' + (role === 'user' ? 'msg-user' : 'msg-ai');
-  div.textContent = text;
+  if (role === 'assistant') {
+    div.innerHTML = formatCoachText(text);
+  } else {
+    div.textContent = text;
+  }
   msgs.appendChild(div);
   if (scroll) msgs.scrollTop = msgs.scrollHeight;
 }
@@ -1628,7 +1641,7 @@ ${userProfile?.training_location==='home' && userProfile?.home_equipment?.length
 SUPPLEMENTS:
 ${suppList.length ? suppList.join(', ') : 'None'}
 
-Be concise, direct, and specific. Use their actual numbers. Speak like a knowledgeable coach — not a chatbot. When analyzing images or documents, describe what you see in detail and give specific actionable advice.`;
+Be concise, specific, and encouraging. Use their actual numbers. Speak like a supportive but knowledgeable coach — direct without being harsh. Acknowledge progress, even small wins. When analyzing images or documents, describe what you see in detail and give specific actionable advice. Never shame or lecture.`;
 
     const { data: history } = await sb.from('coach_messages')
       .select('role, content')
@@ -1668,7 +1681,7 @@ Be concise, direct, and specific. Use their actual numbers. Speak like a knowled
     const data = await res.json();
     const reply = data.content?.[0]?.text || 'Sorry, I had trouble responding. Try again.';
 
-    thinking.textContent = reply;
+    thinking.innerHTML = formatCoachText(reply);
     thinking.removeAttribute('id');
     await saveMsg('assistant', reply);
   } catch (e) {
