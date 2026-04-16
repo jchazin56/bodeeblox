@@ -240,6 +240,21 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
 .ob-tag-wrap { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.75rem; }
 .ob-tag { padding: 0.3rem 0.75rem; border-radius: 100px; background: var(--g2); border: 1px solid var(--g3); font-size: 0.78rem; color: var(--g5); cursor: pointer; transition: all 0.18s; }
 .ob-tag.selected { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+
+/* PROGRESS CHARTS */
+.chart-wrap { margin: 0 1.25rem; background: var(--g1); border: 1px solid var(--g3); border-radius: 20px; padding: 1.25rem; }
+.chart-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+.chart-title { font-family: var(--fd); font-weight: 700; font-size: 0.95rem; }
+.chart-tabs { display: flex; gap: 4px; }
+.chart-tab { padding: 0.25rem 0.6rem; border-radius: 100px; font-size: 0.7rem; cursor: pointer; border: 1px solid var(--g3); background: none; color: var(--g5); font-family: var(--fb); }
+.chart-tab.active { background: var(--accent); color: var(--black); border-color: var(--accent); font-weight: 500; }
+.chart-canvas-wrap { position: relative; height: 120px; }
+.chart-svg { width: 100%; height: 100%; overflow: visible; }
+.chart-empty { display: flex; align-items: center; justify-content: center; height: 120px; font-size: 0.8rem; color: var(--g5); }
+.chart-stats-row { display: flex; gap: 1rem; margin-top: 0.875rem; padding-top: 0.875rem; border-top: 1px solid var(--g3); }
+.chart-stat { flex: 1; }
+.chart-stat-val { font-family: var(--fd); font-weight: 700; font-size: 1rem; }
+.chart-stat-label { font-size: 0.65rem; color: var(--g5); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 1px; }
 </style>
 </head>
 <body>
@@ -628,6 +643,46 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
     <div class="card" style="margin-top:0;">
       <div style="display:flex;flex-wrap:wrap;gap:0.4rem;" id="prof-supp-tags"></div>
     </div>
+    <div class="section-label">Progress</div>
+    <div class="chart-wrap" style="margin-bottom:0.75rem;">
+      <div class="chart-header">
+        <div class="chart-title">Body Weight</div>
+        <div class="chart-tabs">
+          <button class="chart-tab active" onclick="setChartRange('weight',7,this)">7D</button>
+          <button class="chart-tab" onclick="setChartRange('weight',30,this)">30D</button>
+          <button class="chart-tab" onclick="setChartRange('weight',90,this)">90D</button>
+        </div>
+      </div>
+      <div class="chart-canvas-wrap" id="weight-chart-wrap">
+        <div class="chart-empty" id="weight-chart-empty">Log your weight to see trends</div>
+        <svg class="chart-svg" id="weight-chart-svg" style="display:none;"></svg>
+      </div>
+      <div class="chart-stats-row" id="weight-chart-stats" style="display:none;">
+        <div class="chart-stat"><div class="chart-stat-val" id="wc-current">—</div><div class="chart-stat-label">Current</div></div>
+        <div class="chart-stat"><div class="chart-stat-val" id="wc-change" style="color:var(--accent);">—</div><div class="chart-stat-label">Change</div></div>
+        <div class="chart-stat"><div class="chart-stat-val" id="wc-low">—</div><div class="chart-stat-label">Low</div></div>
+        <div class="chart-stat"><div class="chart-stat-val" id="wc-high">—</div><div class="chart-stat-label">High</div></div>
+      </div>
+    </div>
+    <div class="chart-wrap">
+      <div class="chart-header">
+        <div class="chart-title">Daily Calories</div>
+        <div class="chart-tabs">
+          <button class="chart-tab active" onclick="setChartRange('calories',7,this)">7D</button>
+          <button class="chart-tab" onclick="setChartRange('calories',30,this)">30D</button>
+        </div>
+      </div>
+      <div class="chart-canvas-wrap" id="calories-chart-wrap">
+        <div class="chart-empty" id="calories-chart-empty">Log meals to see your calorie history</div>
+        <svg class="chart-svg" id="calories-chart-svg" style="display:none;"></svg>
+      </div>
+      <div class="chart-stats-row" id="calories-chart-stats" style="display:none;">
+        <div class="chart-stat"><div class="chart-stat-val" id="cc-avg">—</div><div class="chart-stat-label">Avg/day</div></div>
+        <div class="chart-stat"><div class="chart-stat-val" id="cc-target" style="color:var(--accent);">—</div><div class="chart-stat-label">Target</div></div>
+        <div class="chart-stat"><div class="chart-stat-val" id="cc-days">—</div><div class="chart-stat-label">Days logged</div></div>
+      </div>
+    </div>
+    <div style="height:0.75rem;"></div>
     <div class="section-label">Quick Actions</div>
     <div class="settings-list">
       <div class="settings-item" onclick="openModal('weightModal')"><div class="si-left"><div class="si-icon">⚖️</div><div class="si-text">Log Body Weight</div></div><div class="si-arrow">›</div></div>
@@ -681,7 +736,7 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
       <div class="settings-list" style="margin:0 0 1rem;">
         <div class="settings-item" onclick="closeModal('profileModal');openModal('weightModal');"><div class="si-left"><div class="si-icon">⚖️</div><div class="si-text">Log Body Weight</div></div><div class="si-arrow">›</div></div>
         <div class="settings-item" onclick="closeModal('profileModal');startEditProfile();"><div class="si-left"><div class="si-icon">✏️</div><div class="si-text">Edit Profile & Goals</div></div><div class="si-arrow">›</div></div>
-        <div class="settings-item" onclick="switchScreen('profile',null);closeModal('profileModal');"><div class="si-left"><div class="si-icon">👤</div><div class="si-text">Full Profile</div></div><div class="si-arrow">›</div></div>
+        <div class="settings-item" onclick="switchScreen('profile',null);closeModal('profileModal');loadProgressCharts();"><div class="si-left"><div class="si-icon">👤</div><div class="si-text">Full Profile</div></div><div class="si-arrow">›</div></div>
       </div>
       <button onclick="sb.auth.signOut();closeModal('profileModal');" style="width:100%;background:rgba(255,95,87,0.1);border:1px solid rgba(255,95,87,0.2);color:var(--danger);border-radius:12px;padding:0.875rem;font-family:var(--fb);font-size:0.9rem;cursor:pointer;">Sign Out</button>
     </div>
@@ -1045,6 +1100,132 @@ function updateProfileScreen() {
   }
 }
 
+
+// PROGRESS CHARTS
+let chartData = { weight: [], calories: [] };
+let chartRanges = { weight: 7, calories: 7 };
+
+async function loadProgressCharts() {
+  const ninetyDaysAgo = new Date();
+  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+  const since = ninetyDaysAgo.toISOString().split('T')[0];
+
+  const [{ data: weightData }, { data: nutData }] = await Promise.all([
+    sb.from('body_stats').select('logged_date,weight_lbs,body_fat_pct').eq('user_id', currentUser.id).gte('logged_date', since).order('logged_date', { ascending: true }),
+    sb.from('nutrition_logs').select('date,calories,protein').eq('user_id', currentUser.id).gte('date', since)
+  ]);
+
+  chartData.weight = (weightData || []).filter(d => d.weight_lbs);
+
+  // Group nutrition by date
+  const nutByDay = (nutData || []).reduce((a, l) => {
+    a[l.date] = (a[l.date] || { cal: 0, pro: 0 });
+    a[l.date].cal += (l.calories || 0);
+    a[l.date].pro += (l.protein || 0);
+    return a;
+  }, {});
+  chartData.calories = Object.entries(nutByDay).map(([date, v]) => ({ date, calories: Math.round(v.cal), protein: Math.round(v.pro) })).sort((a, b) => a.date.localeCompare(b.date));
+
+  renderWeightChart(chartRanges.weight);
+  renderCaloriesChart(chartRanges.calories);
+}
+
+function setChartRange(type, days, btn) {
+  btn.closest('.chart-tabs').querySelectorAll('.chart-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  chartRanges[type] = days;
+  if (type === 'weight') renderWeightChart(days);
+  else renderCaloriesChart(days);
+}
+
+function renderWeightChart(days) {
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - days);
+  const cutStr = cutoff.toISOString().split('T')[0];
+  const data = chartData.weight.filter(d => d.logged_date >= cutStr);
+  const svg = document.getElementById('weight-chart-svg');
+  const empty = document.getElementById('weight-chart-empty');
+  const stats = document.getElementById('weight-chart-stats');
+
+  if (!data.length) { svg.style.display = 'none'; empty.style.display = 'flex'; stats.style.display = 'none'; return; }
+
+  svg.style.display = 'block'; empty.style.display = 'none'; stats.style.display = 'flex';
+
+  const vals = data.map(d => d.weight_lbs);
+  const min = Math.min(...vals) - 2, max = Math.max(...vals) + 2;
+  const W = 280, H = 120, pad = 10;
+
+  const points = data.map((d, i) => {
+    const x = pad + (i / Math.max(1, data.length - 1)) * (W - pad * 2);
+    const y = H - pad - ((d.weight_lbs - min) / (max - min)) * (H - pad * 2);
+    return [x, y];
+  });
+
+  const line = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+  const area = line + ` L${points[points.length-1][0].toFixed(1)},${H} L${points[0][0].toFixed(1)},${H} Z`;
+
+  // Goal line
+  const goalY = H - pad - ((userProfile?.goal - min) / (max - min)) * (H - pad * 2);
+
+  svg.innerHTML = `
+    <defs>
+      <linearGradient id="wg" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#C8F25A" stop-opacity="0.3"/>
+        <stop offset="100%" stop-color="#C8F25A" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <path d="${area}" fill="url(#wg)"/>
+    <path d="${line}" fill="none" stroke="#C8F25A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    ${points.map((p,i) => i === points.length-1 ? `<circle cx="${p[0]}" cy="${p[1]}" r="4" fill="#C8F25A"/>` : '').join('')}
+  `;
+
+  const change = vals[vals.length-1] - vals[0];
+  setText('wc-current', vals[vals.length-1].toFixed(1) + ' lbs');
+  const changeEl = document.getElementById('wc-change');
+  changeEl.textContent = (change >= 0 ? '+' : '') + change.toFixed(1) + ' lbs';
+  changeEl.style.color = change <= 0 ? 'var(--accent)' : 'var(--warn)';
+  setText('wc-low', Math.min(...vals).toFixed(1));
+  setText('wc-high', Math.max(...vals).toFixed(1));
+}
+
+function renderCaloriesChart(days) {
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - days);
+  const cutStr = cutoff.toISOString().split('T')[0];
+  const data = chartData.calories.filter(d => d.date >= cutStr);
+  const svg = document.getElementById('calories-chart-svg');
+  const empty = document.getElementById('calories-chart-empty');
+  const stats = document.getElementById('calories-chart-stats');
+
+  if (!data.length) { svg.style.display = 'none'; empty.style.display = 'flex'; stats.style.display = 'none'; return; }
+
+  svg.style.display = 'block'; empty.style.display = 'none'; stats.style.display = 'flex';
+
+  const goal = userProfile?.goal_calories || 2400;
+  const vals = data.map(d => d.calories);
+  const max = Math.max(...vals, goal) * 1.15;
+  const W = 280, H = 120, pad = 10;
+  const barW = Math.max(4, Math.min(18, (W - pad * 2) / data.length - 3));
+
+  const bars = data.map((d, i) => {
+    const x = pad + (i / Math.max(1, data.length - 1)) * (W - pad * 2) - barW / 2;
+    const barH = (d.calories / max) * (H - pad * 2);
+    const y = H - pad - barH;
+    const color = d.calories >= goal * 0.9 && d.calories <= goal * 1.1 ? '#C8F25A' : d.calories > goal * 1.1 ? '#FFBD2E' : '#3F3F44';
+    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW}" height="${barH.toFixed(1)}" rx="3" fill="${color}"/>`;
+  }).join('');
+
+  const goalY = H - pad - (goal / max) * (H - pad * 2);
+
+  svg.innerHTML = `
+    ${bars}
+    <line x1="${pad}" y1="${goalY.toFixed(1)}" x2="${W - pad}" y2="${goalY.toFixed(1)}" stroke="#C8F25A" stroke-width="1" stroke-dasharray="4,3" opacity="0.5"/>
+  `;
+
+  const avg = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+  setText('cc-avg', avg.toLocaleString() + ' kcal');
+  setText('cc-target', goal.toLocaleString() + ' kcal');
+  setText('cc-days', data.length + ' days');
+}
+
 // ONBOARDING
 let obData = { goal: null, activity: null, trainingLoc: null, equipment: [], trainingStyles: [], supplements: [] };
 
@@ -1277,6 +1458,7 @@ function switchScreen(name, el) {
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('screen-'+name).classList.add('active');
   if (el) el.classList.add('active');
+  if (name === 'profile') loadProgressCharts();
 }
 
 function openModal(id) { document.getElementById(id).classList.add('active'); }
@@ -1383,19 +1565,70 @@ async function sendCoachMsg() {
       carb: a.carb + (l.carbs || 0), fat: a.fat + (l.fat || 0)
     }), { cal: 0, pro: 0, carb: 0, fat: 0 });
 
-    const systemPrompt = `You are an expert fitness and nutrition coach inside BodeeBlox, a personal training app. You know this athlete's data:
+    // Fetch recent body stats for coach context
+    const { data: recentStats } = await sb.from('body_stats')
+      .select('weight_lbs,body_fat_pct,lean_mass_lbs,logged_date')
+      .eq('user_id', currentUser.id)
+      .order('logged_date', { ascending: false })
+      .limit(7);
 
-Name: ${userProfile?.name || 'Athlete'}
-Calorie goal: ${userProfile?.goal_calories || 2400} kcal/day
-Protein goal: ${userProfile?.goal_protein || 160}g/day
+    // Fetch recent nutrition average (last 7 days)
+    const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const { data: recentNut } = await sb.from('nutrition_logs')
+      .select('calories,protein,carbs,fat,date')
+      .eq('user_id', currentUser.id)
+      .gte('date', sevenDaysAgo.toISOString().split('T')[0]);
 
-Today's nutrition so far:
-- Calories: ${Math.round(todayNut.cal)} kcal
-- Protein: ${Math.round(todayNut.pro)}g
-- Carbs: ${Math.round(todayNut.carb)}g
-- Fat: ${Math.round(todayNut.fat)}g
+    const avgNut = recentNut?.length ? recentNut.reduce((a,l) => ({
+      cal: a.cal+(l.calories||0), pro: a.pro+(l.protein||0)
+    }), {cal:0,pro:0}) : null;
+    const avgCal = avgNut ? Math.round(avgNut.cal / Math.max(1, [...new Set(recentNut.map(l=>l.date))].length)) : null;
+    const avgPro = avgNut ? Math.round(avgNut.pro / Math.max(1, [...new Set(recentNut.map(l=>l.date))].length)) : null;
 
-Be concise, direct, and specific. Use their actual numbers. No fluff. Talk like a knowledgeable coach, not a chatbot. When analyzing images or documents, be specific about what you see.`;
+    const latestStat = recentStats?.[0];
+    const suppLabels = { protein_powder:'Protein powder', creatine:'Creatine', pre_workout:'Pre-workout', omega3:'Omega-3', vitamin_d:'Vitamin D', magnesium:'Magnesium', multivitamin:'Multivitamin', peptides:'Peptides/TRT' };
+    const suppList = (userProfile?.supplements||[]).map(s=>suppLabels[s]||s).filter(s=>s!=='none');
+    if (userProfile?.supplements_custom) suppList.push(userProfile.supplements_custom);
+
+    const goalLabels = { cut:'Lose fat (calorie deficit)', bulk:'Build muscle (calorie surplus)', recomp:'Body recomposition', maintain:'Maintain weight' };
+
+    const systemPrompt = `You are an expert fitness and nutrition coach inside BodeeBlox. You have full context on this athlete:
+
+PROFILE:
+- Name: ${userProfile?.name || 'Athlete'}
+- Age: ${userProfile?.age || 'unknown'} | Sex: ${userProfile?.sex || 'unknown'}
+- Goal: ${goalLabels[userProfile?.goal] || 'not set'}
+- Activity level multiplier: ${userProfile?.activity_level || 'not set'}
+
+TARGETS:
+- Calories: ${userProfile?.goal_calories || 2400} kcal/day
+- Protein: ${userProfile?.goal_protein || 160}g/day
+
+TODAY'S NUTRITION:
+- Calories: ${Math.round(todayNut.cal)} kcal | Protein: ${Math.round(todayNut.pro)}g | Carbs: ${Math.round(todayNut.carb)}g | Fat: ${Math.round(todayNut.fat)}g
+
+7-DAY NUTRITION AVERAGE:
+${avgCal ? `- Avg calories: ${avgCal} kcal/day | Avg protein: ${avgPro}g/day` : '- Not enough data yet'}
+
+BODY STATS (most recent):
+${latestStat ? `- Weight: ${latestStat.weight_lbs} lbs (logged ${latestStat.logged_date})
+- Body fat: ${latestStat.body_fat_pct ? latestStat.body_fat_pct + '%' : 'not logged'}
+- Lean mass: ${latestStat.lean_mass_lbs ? latestStat.lean_mass_lbs + ' lbs' : 'not logged'}` : '- No body stats logged yet'}
+
+${recentStats?.length > 1 ? `WEIGHT TREND (last ${recentStats.length} entries):
+${recentStats.slice(0,5).map(s=>`- ${s.logged_date}: ${s.weight_lbs} lbs`).join('\n')}` : ''}
+
+TRAINING SETUP:
+- Location: ${userProfile?.training_location || 'not set'}
+- Style: ${(userProfile?.training_styles||[]).join(', ')||'not set'}
+- Days/week: ${userProfile?.training_days || 'not set'} | Session: ${userProfile?.session_duration ? userProfile.session_duration+'min' : 'not set'}
+- Injuries/limitations: ${userProfile?.injuries || 'none reported'}
+${userProfile?.training_location==='home' && userProfile?.home_equipment?.length ? `- Home equipment: ${userProfile.home_equipment.join(', ')}` : ''}
+
+SUPPLEMENTS:
+${suppList.length ? suppList.join(', ') : 'None'}
+
+Be concise, direct, and specific. Use their actual numbers. Speak like a knowledgeable coach — not a chatbot. When analyzing images or documents, describe what you see in detail and give specific actionable advice.`;
 
     const { data: history } = await sb.from('coach_messages')
       .select('role, content')
