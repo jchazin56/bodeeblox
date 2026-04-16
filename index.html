@@ -1491,12 +1491,13 @@ async function loadCoachHistory() {
 }
 
 function formatCoachText(text) {
-  return text
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/^- (.+)/gm, '• $1')
-    .replace(/
-/g, '<br>');
+  if (!text) return "";
+  let t = text;
+  t = t.split("**").map((s,i) => i%2===1 ? "<strong>"+s+"</strong>" : s).join("");
+  t = t.replace(/
+/g, "<br>");
+  t = t.replace(/^- (.+)/gm, "• $1");
+  return t;
 }
 
 function appendMsg(role, text, scroll = true) {
