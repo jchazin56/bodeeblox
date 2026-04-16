@@ -1491,12 +1491,15 @@ async function loadCoachHistory() {
 }
 
 function formatCoachText(text) {
-  if (!text) return "";
+  if (!text) return '';
   let t = text;
-  t = t.split("**").map((s,i) => i%2===1 ? "<strong>"+s+"</strong>" : s).join("");
-  t = t.replace(/
-/g, "<br>");
-  t = t.replace(/^- (.+)/gm, "• $1");
+  // Bold: split on ** pairs
+  const parts = t.split('**');
+  t = parts.map((s, i) => i % 2 === 1 ? '<strong>' + s + '</strong>' : s).join('');
+  // Newlines to br
+  t = t.replace(/\n/g, '<br>');
+  // Bullet points
+  t = t.replace(/^- (.+)/gm, '&#8226; $1');
   return t;
 }
 
