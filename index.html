@@ -54,9 +54,7 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
 /* APP */
 #app { display: none; height: 100vh; height: 100dvh; flex-direction: column; max-width: 430px; margin: 0 auto; position: relative; overflow: hidden; }
 .screen { display: none; flex: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 1rem); scrollbar-width: none; }
-#screen-coach { overflow: hidden; padding-bottom: 0; display: flex; flex-direction: column; }
-#screen-coach .coach-messages { flex: 1; overflow-y: auto; min-height: 0; padding-bottom: 1rem; }
-#screen-coach .coach-input-bar { position: relative; bottom: auto; flex-shrink: 0; margin-bottom: calc(var(--nav-h) + var(--safe-bottom)); }
+#coach-panel { display: flex !important; flex-direction: column; }
 .screen::-webkit-scrollbar { display: none; }
 .screen.active { display: block; animation: fadeIn 0.2s ease; }
 
@@ -271,6 +269,16 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
 .workout-finish-bar { margin: 1rem 1.25rem 0; }
 .session-active-header { margin: 0.5rem 1.25rem; background: linear-gradient(135deg, rgba(200,242,90,0.15), rgba(200,242,90,0.05)); border: 1px solid rgba(200,242,90,0.3); border-radius: 16px; padding: 1rem; display: flex; align-items: center; justify-content: space-between; }
 .session-timer { font-family: var(--fd); font-weight: 700; font-size: 1.5rem; color: var(--accent); }
+
+/* FLOATING COACH */
+#coach-fab { position: absolute; bottom: calc(var(--nav-h) + var(--safe-bottom) + 1rem); right: 1rem; width: 52px; height: 52px; background: var(--g1); border: 1.5px solid rgba(200,242,90,0.4); border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 60; box-shadow: 0 4px 20px rgba(0,0,0,0.4); transition: transform 0.2s; font-size: 22px; }
+#coach-fab:active { transform: scale(0.92); }
+#coach-fab .fab-dot { position: absolute; top: 2px; right: 2px; width: 10px; height: 10px; background: var(--accent); border-radius: 50%; border: 2px solid var(--black); animation: pulse 2s infinite; }
+#coach-panel { position: absolute; inset: 0; background: var(--black); z-index: 80; display: flex; flex-direction: column; transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1); }
+#coach-panel.open { transform: translateY(0); }
+.coach-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 1.25rem 1.25rem 0.75rem; flex-shrink: 0; border-bottom: 1px solid var(--g3); }
+.coach-panel-title { font-family: var(--fd); font-weight: 800; font-size: 1.3rem; letter-spacing: -0.02em; }
+.coach-panel-close { width: 36px; height: 36px; background: var(--g2); border: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 1rem; color: var(--g5); }
 </style>
 </head>
 <body>
@@ -528,7 +536,7 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
     <div class="ai-coach-card">
       <div class="ai-badge"><div class="ai-dot-live"></div> AI Coach · Today's Read</div>
       <div style="font-size:0.875rem;line-height:1.6;color:var(--g6);margin-bottom:1rem;" id="coach-insight">Loading your insight...</div>
-      <div style="font-size:0.8rem;font-weight:500;color:var(--accent);cursor:pointer;" onclick="switchScreen('coach',document.querySelectorAll('.nav-item')[3])">Full coaching chat →</div>
+      <div style="font-size:0.8rem;font-weight:500;color:var(--accent);cursor:pointer;" onclick="toggleCoach()">Full coaching chat →</div>
     </div>
     <div class="section-label">This Week's Forecast</div>
     <div class="forecast-strip" id="forecast-strip"></div>
@@ -629,9 +637,22 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
   </div>
 
   <!-- COACH -->
-  <div class="screen" id="screen-coach" style="display:flex;flex-direction:column;">
-    <div class="screen-header" style="padding-top:1.25rem;flex-shrink:0;"><div><div class="screen-title">Coach</div><div style="font-size:0.72rem;color:var(--accent);display:flex;align-items:center;gap:4px;margin-top:2px;"><div class="ai-dot-live" style="width:6px;height:6px;"></div> Knows your full history</div></div></div>
-    <div class="coach-messages" id="coach-msgs" style="flex:1;overflow-y:auto;padding-bottom:0.5rem;"></div>
+  <!-- FLOATING COACH BUTTON -->
+  <div id="coach-fab" onclick="toggleCoach()">
+    🤖
+    <div class="fab-dot"></div>
+  </div>
+
+  <!-- COACH PANEL (full screen overlay) -->
+  <div id="coach-panel">
+    <div class="coach-panel-header">
+      <div>
+        <div class="coach-panel-title">Coach</div>
+        <div style="font-size:0.7rem;color:var(--accent);display:flex;align-items:center;gap:4px;margin-top:2px;"><div class="ai-dot-live" style="width:6px;height:6px;"></div> Knows your full history</div>
+      </div>
+      <button class="coach-panel-close" onclick="toggleCoach()">✕</button>
+    </div>
+    <div class="coach-messages" id="coach-msgs" style="flex:1;overflow-y:auto;padding:0.5rem 1.25rem;padding-bottom:0.5rem;min-height:0;"></div>
     <div id="attach-preview" style="display:none;padding:0.5rem 1rem;background:var(--g2);border-top:1px solid var(--g3);">
       <div style="display:flex;align-items:center;gap:0.5rem;">
         <span id="attach-name" style="font-size:0.78rem;color:var(--g5);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
@@ -639,7 +660,7 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
       </div>
       <img id="attach-img-preview" style="display:none;max-height:80px;border-radius:8px;margin-top:0.4rem;object-fit:cover;" />
     </div>
-    <div class="coach-input-bar">
+    <div class="coach-input-bar" style="position:relative;bottom:auto;margin-bottom:calc(env(safe-area-inset-bottom,0px) + 0.5rem);">
       <input type="file" id="fileInput" accept="image/*,application/pdf" style="display:none;">
       <button class="voice-btn" onclick="document.getElementById('fileInput').click()">📎</button>
       <input class="coach-input" id="coachInput" placeholder="Ask your coach anything..." type="text">
@@ -733,7 +754,7 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
     <div class="nav-item" onclick="switchScreen('workout',this)"><div class="nav-pip"></div><div class="nav-icon">🏋️</div><div class="nav-label">Train</div></div>
     <div class="log-btn-wrap" onclick="openModal('logModal')"><div class="log-btn">+</div><div class="log-btn-label">Log</div></div>
     <div class="nav-item" onclick="switchScreen('nutrition',this);loadNutrition();"><div class="nav-pip"></div><div class="nav-icon">🥗</div><div class="nav-label">Nutrition</div></div>
-    <div class="nav-item" onclick="switchScreen('coach',this);loadCoachHistory();"><div class="nav-pip"></div><div class="nav-icon">🤖</div><div class="nav-label">Coach</div></div>
+    <div class="nav-item" onclick="switchScreen('profile',this);loadProgressCharts();"><div class="nav-pip"></div><div class="nav-icon">👤</div><div class="nav-label">Profile</div></div>
   </nav>
 
 
@@ -1188,7 +1209,7 @@ Return a JSON object with this exact structure:
 {
   "days": [
     {
-      "day": "Monday",
+      "day": "Day 1",
       "name": "Upper Push",
       "type": "training",
       "focus": "Chest, Shoulders, Triceps",
@@ -1203,7 +1224,7 @@ Return a JSON object with this exact structure:
       ]
     },
     {
-      "day": "Tuesday", 
+      "day": "Day 2",
       "name": "Rest & Recovery",
       "type": "rest",
       "focus": "Active recovery",
@@ -1212,7 +1233,7 @@ Return a JSON object with this exact structure:
   ]
 }
 
-Include exactly ${days} training days and ${7 - days} rest days spread across the week. Each training day should have 4-6 exercises appropriate for ${duration} min sessions.`
+Label days as "Day 1", "Day 2", etc. (not weekday names — the user picks which day to do when). Include exactly ${days} training days and ${7 - days} rest days in a logical order. Each training day should have 4-6 exercises appropriate for ${duration} min sessions.`
         }]
       })
     });
@@ -1232,27 +1253,42 @@ Include exactly ${days} training days and ${7 - days} rest days spread across th
   }
 }
 
-function renderWeeklyPlan() {
+async function renderWeeklyPlan() {
   const workoutContent = document.getElementById('workout-content');
   if (!currentPlan || !currentPlan.days) return;
 
-  const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
-  
+  // Load recent sessions to show completion status
+  const { data: recentSessions } = await sb.from('workout_sessions')
+    .select('plan_day, completed_at')
+    .eq('user_id', currentUser.id)
+    .order('completed_at', { ascending: false })
+    .limit(20);
+
+  const completedDays = new Set((recentSessions || []).map(s => s.plan_day));
+  const lastSession = recentSessions?.[0];
+
   let html = '<div style="padding:0 0 1rem;">';
-  
+  html += `<div style="padding:0.5rem 1.25rem 0;font-size:0.75rem;color:var(--g5);">Tap any training day to start — do them in any order.</div>`;
+
   currentPlan.days.forEach((day, i) => {
-    const isToday = day.day === today;
     const isRest = day.type === 'rest';
-    
-    html += `<div class="workout-day-card ${isToday ? 'today' : ''} ${isRest ? 'rest' : ''}" ${!isRest ? 'onclick="startWorkoutSession(' + i + ')"' : ''}>
+    const isDone = completedDays.has(day.name);
+    const isLast = lastSession?.plan_day === day.name;
+
+    html += `<div class="workout-day-card ${isDone ? 'today' : ''} ${isRest ? 'rest' : ''}" ${!isRest ? 'onclick="startWorkoutSession(' + i + ')"' : ''}>
       <div style="display:flex;align-items:center;justify-content:space-between;">
         <div>
-          <div class="wdc-day">${day.day}${isToday ? ' · Today' : ''}</div>
+          <div class="wdc-day">${day.day}${isLast ? ' · Last done' : isDone ? ' · Completed' : ''}</div>
           <div class="wdc-name">${day.name}</div>
           <div class="wdc-meta">${day.focus || ''}</div>
         </div>
         <div style="text-align:right;">
-          ${isRest ? '<span style="font-size:1.5rem;">😴</span>' : `<div class="pill pill-green" style="font-size:0.65rem;">${day.exercises?.length || 0} exercises</div>`}
+          ${isRest
+            ? '<span style="font-size:1.5rem;">😴</span>'
+            : isDone
+              ? '<span style="font-size:1.25rem;">✅</span>'
+              : `<div class="pill pill-green" style="font-size:0.65rem;">${day.exercises?.length || 0} exercises</div>`
+          }
         </div>
       </div>
       ${isRest && day.tips ? '<div style="margin-top:0.6rem;display:flex;flex-wrap:wrap;gap:0.35rem;">' + day.tips.map(t => '<span style="font-size:0.7rem;color:var(--g5);">• ' + t + '</span>').join('') + '</div>' : ''}
@@ -1794,6 +1830,22 @@ function authMsg(type, msg) {
 }
 
 // NAVIGATION
+let coachOpen = false;
+
+function toggleCoach() {
+  coachOpen = !coachOpen;
+  const panel = document.getElementById('coach-panel');
+  const fab = document.getElementById('coach-fab');
+  if (coachOpen) {
+    panel.classList.add('open');
+    fab.style.display = 'none';
+    loadCoachHistory();
+  } else {
+    panel.classList.remove('open');
+    fab.style.display = 'flex';
+  }
+}
+
 function switchScreen(name, el) {
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
@@ -1826,7 +1878,14 @@ async function loadCoachHistory() {
     .eq('user_id', currentUser.id)
     .order('created_at', { ascending: true })
     .limit(50);
-  if (!data || data.length === 0) return;
+  if (!data || data.length === 0) {
+    // Show welcome message if no history
+    const msgs = document.getElementById('coach-msgs');
+    if (msgs && !msgs.children.length) {
+      appendMsg('assistant', 'Hey! I\'m your AI coach. I know your goals, nutrition, body stats, and training setup. Ask me anything — form tips, nutrition advice, recovery, or just how you\'re tracking overall.', false);
+    }
+    return;
+  }
   msgs.innerHTML = '';
   data.forEach(m => appendMsg(m.role, m.content, false));
   msgs.scrollTop = msgs.scrollHeight;
