@@ -1389,7 +1389,27 @@ function toggleSessionEx(id) {
 function toggleSessionCheck(ei, si) {
   const check = document.getElementById('sc-' + ei + '-' + si);
   check.classList.toggle('done');
-  check.textContent = check.classList.contains('done') ? '✓' : '';
+  const isDone = check.classList.contains('done');
+  check.textContent = isDone ? '✓' : '';
+
+  // Auto-fill subsequent sets with same weight + reps when first set is checked
+  if (isDone) {
+    const weight = document.getElementById('sw-' + ei + '-' + si)?.value;
+    const reps = document.getElementById('sr-' + ei + '-' + si)?.value;
+    const rpe = document.getElementById('srpe-' + ei + '-' + si)?.value;
+
+    // Fill all subsequent empty sets
+    let nextSi = si + 1;
+    while (document.getElementById('sw-' + ei + '-' + nextSi)) {
+      const nextWeight = document.getElementById('sw-' + ei + '-' + nextSi);
+      const nextReps = document.getElementById('sr-' + ei + '-' + nextSi);
+      const nextRpe = document.getElementById('srpe-' + ei + '-' + nextSi);
+      if (nextWeight && !nextWeight.value && weight) nextWeight.value = weight;
+      if (nextReps && !nextReps.value && reps) nextReps.value = reps;
+      if (nextRpe && !nextRpe.value && rpe) nextRpe.value = rpe;
+      nextSi++;
+    }
+  }
 }
 
 function addSetToExercise(ei, currentSets) {
