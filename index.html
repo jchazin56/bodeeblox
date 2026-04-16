@@ -736,7 +736,7 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
       <div class="settings-list" style="margin:0 0 1rem;">
         <div class="settings-item" onclick="closeModal('profileModal');openModal('weightModal');"><div class="si-left"><div class="si-icon">⚖️</div><div class="si-text">Log Body Weight</div></div><div class="si-arrow">›</div></div>
         <div class="settings-item" onclick="closeModal('profileModal');startEditProfile();"><div class="si-left"><div class="si-icon">✏️</div><div class="si-text">Edit Profile & Goals</div></div><div class="si-arrow">›</div></div>
-        <div class="settings-item" onclick="switchScreen('profile',null);closeModal('profileModal');loadProgressCharts();"><div class="si-left"><div class="si-icon">👤</div><div class="si-text">Full Profile</div></div><div class="si-arrow">›</div></div>
+        <div class="settings-item" id="full-profile-btn"><div class="si-left"><div class="si-icon">👤</div><div class="si-text">Full Profile</div></div><div class="si-arrow">›</div></div>
       </div>
       <button onclick="sb.auth.signOut();closeModal('profileModal');" style="width:100%;background:rgba(255,95,87,0.1);border:1px solid rgba(255,95,87,0.2);color:var(--danger);border-radius:12px;padding:0.875rem;font-family:var(--fb);font-size:0.9rem;cursor:pointer;">Sign Out</button>
     </div>
@@ -994,8 +994,8 @@ async function saveBodyWeight() {
   if (!w) return showToast('Enter a weight', 'error');
   const bf = parseFloat(document.getElementById('bf-val').value)||null;
   const lean = (w&&bf) ? parseFloat((w*(1-bf/100)).toFixed(1)) : null;
-  const { error } = await sb.from('body_stats').upsert({ user_id: currentUser.id, logged_date: todayStr(), weight_lbs: w, body_fat_pct: bf, lean_mass_lbs: lean }, {onConflict:'user_id,logged_date'});
-  if (error) return showToast('Error saving', 'error');
+  const { data: savedData, error } = await sb.from('body_stats').upsert({ user_id: currentUser.id, logged_date: todayStr(), weight_lbs: w, body_fat_pct: bf, lean_mass_lbs: lean }, {onConflict:'user_id,logged_date'});
+  if (error) { console.error('Weight save error:', error); return showToast('Error: ' + (error.message || 'saving failed'), 'error'); }
   document.getElementById('weight-val').value=''; document.getElementById('bf-val').value='';
   closeModal('weightModal');
   closeModal('profileModal');
@@ -1680,6 +1680,7 @@ Be concise, direct, and specific. Use their actual numbers. Speak like a knowled
 }
 
 document.getElementById('coachInput').addEventListener('keydown', e => { if (e.key === 'Enter') sendCoachMsg(); });
+document.getElementById('full-profile-btn').addEventListener('click', () => { switchScreen('profile', null); closeModal('profileModal'); loadProgressCharts(); });
 document.getElementById('signout-btn').addEventListener('click', ()=>sb.auth.signOut());
 document.getElementById('food-name').addEventListener('input', e => foodSearch(e.target.value));
 
