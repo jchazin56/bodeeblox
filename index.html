@@ -255,6 +255,22 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
 .chart-stat { flex: 1; }
 .chart-stat-val { font-family: var(--fd); font-weight: 700; font-size: 1rem; }
 .chart-stat-label { font-size: 0.65rem; color: var(--g5); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 1px; }
+
+/* WORKOUT */
+.workout-day-card { margin: 0.5rem 1.25rem; background: var(--g1); border: 1px solid var(--g3); border-radius: 16px; padding: 1rem; cursor: pointer; transition: border-color 0.2s; }
+.workout-day-card.today { border-color: rgba(200,242,90,0.4); }
+.workout-day-card.rest { opacity: 0.6; }
+.wdc-day { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--g5); margin-bottom: 4px; }
+.wdc-name { font-family: var(--fd); font-weight: 700; font-size: 1rem; }
+.wdc-meta { font-size: 0.75rem; color: var(--g5); margin-top: 3px; }
+.ex-rpe { width: 44px; }
+.set-row { display: grid; grid-template-columns: 24px 1fr 1fr 52px 28px; gap: 0.4rem; align-items: center; }
+.rpe-input { background: var(--g2); border: 1px solid var(--g3); border-radius: 8px; padding: 0.5rem 0.25rem; font-family: var(--fb); font-size: 0.8rem; color: var(--warn); text-align: center; outline: none; width: 100%; }
+.rpe-input:focus { border-color: var(--warn); }
+.workout-generating { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3rem 1.25rem; gap: 1rem; color: var(--g5); font-size: 0.875rem; text-align: center; }
+.workout-finish-bar { margin: 1rem 1.25rem 0; }
+.session-active-header { margin: 0.5rem 1.25rem; background: linear-gradient(135deg, rgba(200,242,90,0.15), rgba(200,242,90,0.05)); border: 1px solid rgba(200,242,90,0.3); border-radius: 16px; padding: 1rem; display: flex; align-items: center; justify-content: space-between; }
+.session-timer { font-family: var(--fd); font-weight: 700; font-size: 1.5rem; color: var(--accent); }
 </style>
 </head>
 <body>
@@ -545,32 +561,50 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
 
   <!-- WORKOUT -->
   <div class="screen" id="screen-workout">
-    <div class="screen-header" style="padding-top:1.25rem;"><div class="screen-title">Train</div><div class="pill pill-green">● Live</div></div>
-    <div class="day-tabs">
-      <div class="day-tab active">Day A · Upper</div><div class="day-tab">Day B · Lower</div><div class="day-tab">Day C · Push</div><div class="day-tab">Day D · Pull</div><div class="day-tab">Day E · Legs</div>
+    <div class="screen-header" style="padding-top:1.25rem;">
+      <div class="screen-title">Train</div>
+      <button id="regen-plan-btn" style="background:var(--g2);border:1px solid var(--g3);color:var(--g5);border-radius:10px;padding:0.4rem 0.75rem;font-size:0.75rem;font-family:var(--fb);cursor:pointer;">↻ New Plan</button>
     </div>
-    <div class="card" style="margin-top:0.5rem;">
-      <div style="display:flex;align-items:center;justify-content:space-between;">
-        <div><div style="font-size:0.7rem;color:var(--g5);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.08em;">Today · Upper Body</div><div style="font-family:var(--fd);font-weight:700;font-size:1rem;">Moderate Intensity</div></div>
-        <div class="pill pill-warn">Recovery Day</div>
-      </div>
-      <div style="font-size:0.8rem;color:var(--g5);margin-top:0.5rem;">AI adjusted — keep RPE under 7.</div>
-    </div>
-    <div class="section-label">Exercises</div>
-    <div class="exercise-card" id="ex1">
-      <div class="ex-header" onclick="toggleEx('ex1')"><div><div class="ex-name">Bench Press</div><div class="ex-meta">4 sets · 8–10 reps · Double progression</div></div><div class="ex-badge">225 lbs</div></div>
-      <div class="ex-sets" id="ex1-sets">
-        <div style="display:grid;grid-template-columns:28px 1fr 1fr 28px;gap:0.5rem;margin-bottom:0.25rem;"><div style="font-size:0.65rem;color:var(--g5);text-align:center;">Set</div><div style="font-size:0.65rem;color:var(--g5);text-align:center;">Weight</div><div style="font-size:0.65rem;color:var(--g5);text-align:center;">Reps</div><div></div></div>
-        <div class="set-row"><div class="set-num">1</div><input class="set-input" type="number" value="225" inputmode="decimal"><input class="set-input" type="number" value="9" inputmode="decimal"><div class="set-check done" onclick="toggleCheck(this)">✓</div></div>
-        <div class="set-row"><div class="set-num">2</div><input class="set-input" type="number" value="225" inputmode="decimal"><input class="set-input" type="number" placeholder="—" inputmode="decimal"><div class="set-check" onclick="toggleCheck(this)"></div></div>
-        <div class="set-row"><div class="set-num">3</div><input class="set-input" type="number" value="225" inputmode="decimal"><input class="set-input" type="number" placeholder="—" inputmode="decimal"><div class="set-check" onclick="toggleCheck(this)"></div></div>
-        <div class="set-row"><div class="set-num">4</div><input class="set-input" type="number" value="225" inputmode="decimal"><input class="set-input" type="number" placeholder="—" inputmode="decimal"><div class="set-check" onclick="toggleCheck(this)"></div></div>
-        <button class="add-set-btn">+ Add set</button>
+    <div id="workout-content">
+      <div class="workout-generating">
+        <div class="app-loading-spinner"></div>
+        <div>Loading your plan...</div>
       </div>
     </div>
-    <div class="exercise-card"><div class="ex-header"><div><div class="ex-name">Incline DB Press</div><div class="ex-meta">3 sets · 10–12 reps</div></div><div class="ex-badge">75 lbs</div></div></div>
-    <div class="exercise-card"><div class="ex-header"><div><div class="ex-name">Cable Rows</div><div class="ex-meta">4 sets · 10–12 reps</div></div><div class="ex-badge">160 lbs</div></div></div>
-    <div style="margin:1rem 1.25rem;"><button style="width:100%;padding:1rem;background:var(--accent);color:var(--black);border:none;border-radius:16px;font-family:var(--fb);font-size:0.95rem;font-weight:500;cursor:pointer;">Finish Workout</button></div>
+  </div>
+
+  <!-- WORKOUT SESSION MODAL -->
+  <div class="modal-overlay" id="sessionModal" onclick="if(event.target===this){}">
+    <div class="modal-sheet" style="max-height:92vh;">
+      <div class="sheet-handle"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+        <div>
+          <div class="sheet-title" style="margin-bottom:2px;" id="session-title">Workout</div>
+          <div style="font-size:0.75rem;color:var(--g5);" id="session-subtitle"></div>
+        </div>
+        <div style="text-align:right;">
+          <div class="session-timer" id="session-timer">0:00</div>
+          <div style="font-size:0.65rem;color:var(--g5);">elapsed</div>
+        </div>
+      </div>
+      <div id="session-exercises" style="overflow-y:auto;max-height:55vh;"></div>
+      <div style="margin-top:0.75rem;display:flex;gap:0.5rem;">
+        <button onclick="closeModal('sessionModal');stopTimer();" style="flex:1;padding:0.875rem;background:var(--g2);border:1px solid var(--g3);border-radius:12px;color:var(--g5);font-family:var(--fb);font-size:0.875rem;cursor:pointer;">Cancel</button>
+        <button id="finish-workout-btn" style="flex:2;padding:0.875rem;background:var(--accent);border:none;border-radius:12px;color:var(--black);font-family:var(--fb);font-size:0.95rem;font-weight:500;cursor:pointer;">Finish Workout ✓</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- WORKOUT FEEDBACK MODAL -->
+  <div class="modal-overlay" id="feedbackModal">
+    <div class="modal-sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-title">Session Complete 💪</div>
+      <div id="feedback-stats" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;margin-bottom:1rem;"></div>
+      <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent);margin-bottom:0.5rem;display:flex;align-items:center;gap:6px;"><div class="ai-dot-live"></div> Coach Feedback</div>
+      <div id="feedback-text" style="font-size:0.875rem;line-height:1.6;color:var(--g6);margin-bottom:1.25rem;min-height:60px;">Analyzing your session...</div>
+      <button onclick="closeModal('feedbackModal')" style="width:100%;padding:1rem;background:var(--accent);color:var(--black);border:none;border-radius:12px;font-family:var(--fb);font-size:0.95rem;font-weight:500;cursor:pointer;">Done</button>
+    </div>
   </div>
 
   <!-- NUTRITION -->
@@ -1101,6 +1135,313 @@ function updateProfileScreen() {
 }
 
 
+
+// WORKOUT SYSTEM
+let currentPlan = null;
+let activeSession = null;
+let sessionTimerInterval = null;
+let sessionStartTime = null;
+
+async function loadWorkoutScreen() {
+  const workoutContent = document.getElementById('workout-content');
+  workoutContent.innerHTML = '<div class="workout-generating"><div class="app-loading-spinner"></div><div>Loading your plan...</div></div>';
+
+  // Try to load existing plan
+  const { data: plans } = await sb.from('workout_plans')
+    .select('*').eq('user_id', currentUser.id)
+    .order('created_at', { ascending: false }).limit(1);
+
+  if (plans && plans.length && plans[0].plan) {
+    currentPlan = plans[0].plan;
+    renderWeeklyPlan();
+  } else {
+    await generateWorkoutPlan();
+  }
+}
+
+async function generateWorkoutPlan() {
+  const workoutContent = document.getElementById('workout-content');
+  workoutContent.innerHTML = '<div class="workout-generating"><div class="app-loading-spinner"></div><div>AI is building your personalized plan...</div></div>';
+
+  const goalLabels = { cut: 'fat loss', bulk: 'muscle gain', recomp: 'body recomposition', maintain: 'general fitness' };
+  const days = userProfile?.training_days || 4;
+  const style = (userProfile?.training_styles || ['strength']).join(', ');
+  const loc = userProfile?.training_location || 'gym';
+  const equipment = userProfile?.home_equipment?.join(', ') || 'full gym';
+  const injuries = userProfile?.injuries || 'none';
+  const goal = goalLabels[userProfile?.goal] || 'general fitness';
+  const duration = userProfile?.session_duration || 60;
+
+  try {
+    const res = await fetch('/.netlify/functions/coach', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2000,
+        system: 'You are an expert strength and conditioning coach. Return ONLY valid JSON, no markdown, no explanation.',
+        messages: [{
+          role: 'user',
+          content: `Create a ${days}-day weekly workout plan for a ${goal} goal. Training style: ${style}. Location: ${loc}${loc === 'home' ? ', equipment: ' + equipment : ''}. Session length: ${duration} min. Injuries/limitations: ${injuries}.
+
+Return a JSON object with this exact structure:
+{
+  "days": [
+    {
+      "day": "Monday",
+      "name": "Upper Push",
+      "type": "training",
+      "focus": "Chest, Shoulders, Triceps",
+      "exercises": [
+        {
+          "name": "Bench Press",
+          "sets": 4,
+          "reps": "8-10",
+          "rest": "2-3 min",
+          "notes": "Focus on chest stretch at bottom"
+        }
+      ]
+    },
+    {
+      "day": "Tuesday", 
+      "name": "Rest & Recovery",
+      "type": "rest",
+      "focus": "Active recovery",
+      "tips": ["Light walk 20-30 min", "Foam rolling", "Prioritize sleep"]
+    }
+  ]
+}
+
+Include exactly ${days} training days and ${7 - days} rest days spread across the week. Each training day should have 4-6 exercises appropriate for ${duration} min sessions.`
+        }]
+      })
+    });
+
+    if (!res.ok) throw new Error('API error');
+    const data = await res.json();
+    let text = data.content?.[0]?.text || '{}';
+    text = text.replace(/```json|```/g, '').trim();
+    currentPlan = JSON.parse(text);
+
+    // Save to Supabase
+    await sb.from('workout_plans').insert({ user_id: currentUser.id, plan: currentPlan });
+    renderWeeklyPlan();
+  } catch(e) {
+    console.error('Plan generation error:', e);
+    workoutContent.innerHTML = '<div class="workout-generating"><div style="font-size:1.5rem;">⚠️</div><div>Could not generate plan. Check connection and try again.</div><button onclick="generateWorkoutPlan()" style="margin-top:1rem;padding:0.75rem 1.5rem;background:var(--accent);color:var(--black);border:none;border-radius:12px;font-family:var(--fb);cursor:pointer;">Retry</button></div>';
+  }
+}
+
+function renderWeeklyPlan() {
+  const workoutContent = document.getElementById('workout-content');
+  if (!currentPlan || !currentPlan.days) return;
+
+  const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+  
+  let html = '<div style="padding:0 0 1rem;">';
+  
+  currentPlan.days.forEach((day, i) => {
+    const isToday = day.day === today;
+    const isRest = day.type === 'rest';
+    
+    html += `<div class="workout-day-card ${isToday ? 'today' : ''} ${isRest ? 'rest' : ''}" ${!isRest ? 'onclick="startWorkoutSession(' + i + ')"' : ''}>
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <div class="wdc-day">${day.day}${isToday ? ' · Today' : ''}</div>
+          <div class="wdc-name">${day.name}</div>
+          <div class="wdc-meta">${day.focus || ''}</div>
+        </div>
+        <div style="text-align:right;">
+          ${isRest ? '<span style="font-size:1.5rem;">😴</span>' : `<div class="pill pill-green" style="font-size:0.65rem;">${day.exercises?.length || 0} exercises</div>`}
+        </div>
+      </div>
+      ${isRest && day.tips ? '<div style="margin-top:0.6rem;display:flex;flex-wrap:wrap;gap:0.35rem;">' + day.tips.map(t => '<span style="font-size:0.7rem;color:var(--g5);">• ' + t + '</span>').join('') + '</div>' : ''}
+    </div>`;
+  });
+
+  html += '</div>';
+  workoutContent.innerHTML = html;
+}
+
+function startWorkoutSession(dayIndex) {
+  const day = currentPlan.days[dayIndex];
+  if (!day || day.type === 'rest') return;
+
+  activeSession = { dayIndex, day, sets: {} };
+  
+  document.getElementById('session-title').textContent = day.name;
+  document.getElementById('session-subtitle').textContent = day.day + ' · ' + day.focus;
+
+  // Build exercise UI
+  let html = '';
+  day.exercises.forEach((ex, ei) => {
+    html += `<div class="exercise-card" style="margin:0.4rem 0;">
+      <div class="ex-header" onclick="toggleSessionEx('sex${ei}')">
+        <div>
+          <div class="ex-name">${ex.name}</div>
+          <div class="ex-meta">${ex.sets} sets · ${ex.reps} reps · Rest: ${ex.rest}</div>
+          ${ex.notes ? '<div style="font-size:0.7rem;color:var(--g5);margin-top:2px;">💡 ' + ex.notes + '</div>' : ''}
+        </div>
+        <div style="font-size:1.2rem;">›</div>
+      </div>
+      <div class="ex-sets" id="sex${ei}" style="display:none;flex-direction:column;gap:0.5rem;">
+        <div style="display:grid;grid-template-columns:24px 1fr 1fr 52px 28px;gap:0.4rem;margin-bottom:0.25rem;">
+          <div style="font-size:0.6rem;color:var(--g5);text-align:center;">#</div>
+          <div style="font-size:0.6rem;color:var(--g5);text-align:center;">Weight</div>
+          <div style="font-size:0.6rem;color:var(--g5);text-align:center;">Reps</div>
+          <div style="font-size:0.6rem;color:var(--g5);text-align:center;">RPE</div>
+          <div></div>
+        </div>
+        ${Array.from({length: ex.sets}, (_, si) => `
+        <div class="set-row" id="srow-${ei}-${si}">
+          <div class="set-num">${si+1}</div>
+          <input class="set-input" type="number" placeholder="lbs" inputmode="decimal" id="sw-${ei}-${si}">
+          <input class="set-input" type="number" placeholder="reps" inputmode="decimal" id="sr-${ei}-${si}">
+          <input class="rpe-input" type="number" placeholder="RPE" inputmode="decimal" min="1" max="10" step="0.5" id="srpe-${ei}-${si}">
+          <div class="set-check" id="sc-${ei}-${si}" onclick="toggleSessionCheck(${ei},${si})"></div>
+        </div>`).join('')}
+        <button onclick="addSetToExercise(${ei}, ${ex.sets})" style="margin:0.25rem 0.5rem 0.5rem;padding:0.4rem;border-radius:8px;border:1px dashed var(--g3);background:none;color:var(--g5);font-size:0.75rem;font-family:var(--fb);cursor:pointer;">+ Add set</button>
+      </div>
+    </div>`;
+  });
+
+  document.getElementById('session-exercises').innerHTML = html;
+  
+  // Start timer
+  sessionStartTime = Date.now();
+  sessionTimerInterval = setInterval(updateTimer, 1000);
+  
+  openModal('sessionModal');
+}
+
+function toggleSessionEx(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.style.display = el.style.display === 'flex' ? 'none' : 'flex';
+  if (el.style.display === 'flex') el.style.flexDirection = 'column';
+}
+
+function toggleSessionCheck(ei, si) {
+  const check = document.getElementById('sc-' + ei + '-' + si);
+  check.classList.toggle('done');
+  check.textContent = check.classList.contains('done') ? '✓' : '';
+}
+
+function addSetToExercise(ei, currentSets) {
+  const container = document.getElementById('sex' + ei);
+  const newSi = currentSets;
+  const newRow = document.createElement('div');
+  newRow.className = 'set-row';
+  newRow.id = 'srow-' + ei + '-' + newSi;
+  newRow.innerHTML = `
+    <div class="set-num">${newSi + 1}</div>
+    <input class="set-input" type="number" placeholder="lbs" inputmode="decimal" id="sw-${ei}-${newSi}">
+    <input class="set-input" type="number" placeholder="reps" inputmode="decimal" id="sr-${ei}-${newSi}">
+    <input class="rpe-input" type="number" placeholder="RPE" inputmode="decimal" min="1" max="10" step="0.5" id="srpe-${ei}-${newSi}">
+    <div class="set-check" id="sc-${ei}-${newSi}" onclick="toggleSessionCheck(${ei},${newSi})"></div>
+  `;
+  // Insert before the add button
+  const addBtn = container.querySelector('button');
+  container.insertBefore(newRow, addBtn);
+}
+
+function updateTimer() {
+  if (!sessionStartTime) return;
+  const elapsed = Math.floor((Date.now() - sessionStartTime) / 1000);
+  const mins = Math.floor(elapsed / 60);
+  const secs = elapsed % 60;
+  setText('session-timer', mins + ':' + String(secs).padStart(2, '0'));
+}
+
+function stopTimer() {
+  clearInterval(sessionTimerInterval);
+  sessionTimerInterval = null;
+}
+
+async function finishWorkout() {
+  if (!activeSession) return;
+  const btn = document.getElementById('finish-workout-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+
+  const duration = sessionStartTime ? Math.round((Date.now() - sessionStartTime) / 60000) : 0;
+  stopTimer();
+
+  // Collect all logged sets
+  const loggedSets = [];
+  activeSession.day.exercises.forEach((ex, ei) => {
+    let si = 0;
+    while (document.getElementById('sw-' + ei + '-' + si)) {
+      const weight = parseFloat(document.getElementById('sw-' + ei + '-' + si)?.value) || null;
+      const reps = parseInt(document.getElementById('sr-' + ei + '-' + si)?.value) || null;
+      const rpe = parseFloat(document.getElementById('srpe-' + ei + '-' + si)?.value) || null;
+      const done = document.getElementById('sc-' + ei + '-' + si)?.classList.contains('done');
+      if (weight || reps) loggedSets.push({ exercise: ex.name, set: si + 1, weight, reps, rpe, done });
+      si++;
+    }
+  });
+
+  try {
+    // Save session
+    const { data: session } = await sb.from('workout_sessions').insert({
+      user_id: currentUser.id,
+      date: todayStr(),
+      plan_day: activeSession.day.name,
+      duration_minutes: duration
+    }).select().single();
+
+    // Save sets
+    if (session && loggedSets.length) {
+      await sb.from('workout_sets').insert(loggedSets.map(s => ({
+        session_id: session.id,
+        user_id: currentUser.id,
+        exercise_name: s.exercise,
+        set_number: s.set,
+        weight_lbs: s.weight,
+        reps: s.reps,
+        rpe: s.rpe
+      })));
+    }
+
+    closeModal('sessionModal');
+    openModal('feedbackModal');
+
+    // Show stats
+    const totalSets = loggedSets.filter(s => s.done || s.weight).length;
+    const avgRpe = loggedSets.filter(s => s.rpe).reduce((a, b) => a + b.rpe, 0) / (loggedSets.filter(s => s.rpe).length || 1);
+    document.getElementById('feedback-stats').innerHTML = `
+      <div style="background:var(--g2);border-radius:12px;padding:0.75rem;text-align:center;"><div style="font-family:var(--fd);font-weight:700;font-size:1.1rem;color:var(--accent);">${duration}m</div><div style="font-size:0.65rem;color:var(--g5);margin-top:2px;">DURATION</div></div>
+      <div style="background:var(--g2);border-radius:12px;padding:0.75rem;text-align:center;"><div style="font-family:var(--fd);font-weight:700;font-size:1.1rem;">${totalSets}</div><div style="font-size:0.65rem;color:var(--g5);margin-top:2px;">SETS LOGGED</div></div>
+      <div style="background:var(--g2);border-radius:12px;padding:0.75rem;text-align:center;"><div style="font-family:var(--fd);font-weight:700;font-size:1.1rem;color:var(--warn);">${avgRpe ? avgRpe.toFixed(1) : '—'}</div><div style="font-size:0.65rem;color:var(--g5);margin-top:2px;">AVG RPE</div></div>
+    `;
+
+    // Get AI feedback
+    const setsText = loggedSets.map(s => `${s.exercise} set ${s.set}: ${s.weight ? s.weight + 'lbs' : ''} x ${s.reps || '?'} reps${s.rpe ? ' @ RPE ' + s.rpe : ''}`).join('\n');
+    const feedbackRes = await fetch('/.netlify/functions/coach', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 300,
+        system: `You are a fitness coach giving brief post-workout feedback. The athlete's goal is ${userProfile?.goal || 'general fitness'}. Be encouraging, specific, and concise. 2-3 sentences max.`,
+        messages: [{ role: 'user', content: `Workout: ${activeSession.day.name} (${duration} min)\nSets logged:\n${setsText}\n\nGive brief feedback on this session.` }]
+      })
+    });
+    const feedbackData = await feedbackRes.json();
+    const feedback = feedbackData.content?.[0]?.text || 'Great work finishing this session!';
+    
+    // Save feedback to session
+    if (session) await sb.from('workout_sessions').update({ ai_feedback: feedback }).eq('id', session.id);
+    
+    document.getElementById('feedback-text').innerHTML = formatCoachText(feedback);
+    activeSession = null;
+
+  } catch(e) {
+    console.error('Finish workout error:', e);
+    showToast('Error saving workout', 'error');
+    btn.disabled = false; btn.textContent = 'Finish Workout ✓';
+  }
+}
+
 // PROGRESS CHARTS
 let chartData = { weight: [], calories: [] };
 let chartRanges = { weight: 7, calories: 7 };
@@ -1459,6 +1800,7 @@ function switchScreen(name, el) {
   document.getElementById('screen-'+name).classList.add('active');
   if (el) el.classList.add('active');
   if (name === 'profile') loadProgressCharts();
+  if (name === 'workout') loadWorkoutScreen();
 }
 
 function openModal(id) { document.getElementById(id).classList.add('active'); }
@@ -1700,6 +2042,14 @@ document.getElementById('coachInput').addEventListener('keydown', e => { if (e.k
 document.getElementById('full-profile-btn').addEventListener('click', () => { switchScreen('profile', null); closeModal('profileModal'); loadProgressCharts(); });
 document.getElementById('signout-btn').addEventListener('click', ()=>sb.auth.signOut());
 document.getElementById('food-name').addEventListener('input', e => foodSearch(e.target.value));
+document.getElementById('regen-plan-btn').addEventListener('click', async () => {
+  if (confirm('Generate a new workout plan? This will replace your current plan.')) {
+    await sb.from('workout_plans').delete().eq('user_id', currentUser.id);
+    currentPlan = null;
+    generateWorkoutPlan();
+  }
+});
+document.getElementById('finish-workout-btn').addEventListener('click', finishWorkout);
 
 // HELPERS
 function setText(id, val) { const e=document.getElementById(id); if(e) e.textContent=val; }
