@@ -279,6 +279,21 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
 .coach-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 1.25rem 1.25rem 0.75rem; flex-shrink: 0; border-bottom: 1px solid var(--g3); }
 .coach-panel-title { font-family: var(--fd); font-weight: 800; font-size: 1.3rem; letter-spacing: -0.02em; }
 .coach-panel-close { width: 36px; height: 36px; background: var(--g2); border: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 1rem; color: var(--g5); }
+
+/* WORKOUT HISTORY */
+.session-card { margin: 0.4rem 1.25rem; background: var(--g1); border: 1px solid var(--g3); border-radius: 16px; overflow: hidden; }
+.session-card-header { padding: 1rem; display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+.session-card-name { font-family: var(--fd); font-weight: 700; font-size: 0.95rem; }
+.session-card-meta { font-size: 0.72rem; color: var(--g5); margin-top: 2px; }
+.session-card-body { border-top: 1px solid var(--g3); padding: 0.875rem 1rem; display: none; }
+.session-card-body.open { display: block; }
+.session-ex-row { display: flex; justify-content: space-between; align-items: center; padding: 0.3rem 0; border-bottom: 1px solid var(--g3); font-size: 0.8rem; }
+.session-ex-row:last-child { border-bottom: none; }
+.session-feedback { font-size: 0.78rem; line-height: 1.5; color: var(--g5); margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--g3); font-style: italic; }
+.history-empty { text-align: center; padding: 3rem 1.25rem; color: var(--g5); font-size: 0.875rem; }
+.vol-bar-wrap { display: flex; align-items: flex-end; gap: 3px; height: 48px; margin: 0.5rem 0; }
+.vol-bar { flex: 1; background: var(--accent); border-radius: 3px 3px 0 0; opacity: 0.7; min-height: 4px; transition: height 0.4s; }
+.vol-bar.today { opacity: 1; }
 </style>
 </head>
 <body>
@@ -565,6 +580,17 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
         <div class="st-sub">today</div>
       </div>
     </div>
+    <div id="home-workout-card" style="display:none;margin:0.75rem 1.25rem 0;background:var(--g1);border:1px solid var(--g3);border-radius:16px;padding:1rem;cursor:pointer;" onclick="switchScreen('workout',null);loadWorkoutScreen();">
+      <div style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--g5);margin-bottom:4px;">Last Session</div>
+      <div style="font-family:var(--fd);font-weight:700;font-size:1rem;" id="home-last-session-name">—</div>
+      <div style="font-size:0.75rem;color:var(--g5);margin-top:2px;" id="home-last-session-meta">—</div>
+      <div style="font-size:0.78rem;color:var(--accent);margin-top:0.5rem;">Train now →</div>
+    </div>
+    <div id="home-no-workout-card" style="margin:0.75rem 1.25rem 0;background:var(--g1);border:1px dashed var(--g3);border-radius:16px;padding:1rem;cursor:pointer;text-align:center;" onclick="switchScreen('workout',null);loadWorkoutScreen();">
+      <div style="font-size:1.5rem;margin-bottom:0.4rem;">🏋️</div>
+      <div style="font-size:0.875rem;font-weight:500;">Start today's workout</div>
+      <div style="font-size:0.75rem;color:var(--g5);margin-top:2px;">Tap to open your training plan</div>
+    </div>
   </div>
 
   <!-- WORKOUT -->
@@ -738,6 +764,9 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
       </div>
     </div>
     <div style="height:0.75rem;"></div>
+    <div class="section-label">Workout History</div>
+    <div id="workout-history-container"><div class="history-empty">No workouts logged yet.</div></div>
+    <div style="height:0.5rem;"></div>
     <div class="section-label">Quick Actions</div>
     <div class="settings-list">
       <div class="settings-item" onclick="openModal('weightModal')"><div class="si-left"><div class="si-icon">⚖️</div><div class="si-text">Log Body Weight</div></div><div class="si-arrow">›</div></div>
@@ -888,7 +917,6 @@ async function loadApp() {
     return;
   }
   await loadTodayData();
-  await loadCoachHistory();
   buildForecast();
 }
 
@@ -923,6 +951,7 @@ async function loadTodayData() {
     if (w.weight_lbs && w.body_fat_pct) setText('prof-lean', (w.weight_lbs*(1-w.body_fat_pct/100)).toFixed(1));
   }
   generateInsight(todayNutrition);
+  loadHomeWorkoutData();
 }
 
 function updateNutritionUI(logs) {
@@ -1478,6 +1507,100 @@ async function finishWorkout() {
   }
 }
 
+
+// WORKOUT HISTORY
+async function loadWorkoutHistory() {
+  const container = document.getElementById('workout-history-container');
+  if (!container) return;
+
+  const { data: sessions } = await sb.from('workout_sessions')
+    .select('*')
+    .eq('user_id', currentUser.id)
+    .order('completed_at', { ascending: false })
+    .limit(20);
+
+  if (!sessions || !sessions.length) {
+    container.innerHTML = '<div class="history-empty">No workouts logged yet.<br>Complete your first session to see history.</div>';
+    return;
+  }
+
+  // Get sets for all sessions
+  const sessionIds = sessions.map(s => s.id);
+  const { data: allSets } = await sb.from('workout_sets')
+    .select('*')
+    .in('session_id', sessionIds);
+
+  const setsBySession = (allSets || []).reduce((a, s) => {
+    (a[s.session_id] = a[s.session_id] || []).push(s);
+    return a;
+  }, {});
+
+  let html = '';
+  sessions.forEach((session, i) => {
+    const sets = setsBySession[session.id] || [];
+    const exercises = [...new Set(sets.map(s => s.exercise_name))];
+    const totalSets = sets.length;
+    const avgRpe = sets.filter(s => s.rpe).length
+      ? (sets.filter(s => s.rpe).reduce((a, s) => a + s.rpe, 0) / sets.filter(s => s.rpe).length).toFixed(1)
+      : null;
+    const date = new Date(session.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+    html += `<div class="session-card">
+      <div class="session-card-header" onclick="toggleSessionHistory('sh${i}')">
+        <div>
+          <div class="session-card-name">${session.plan_day}</div>
+          <div class="session-card-meta">${date} · ${session.duration_minutes || '?'} min · ${totalSets} sets${avgRpe ? ' · RPE ' + avgRpe : ''}</div>
+        </div>
+        <div style="color:var(--g4);font-size:1.1rem;" id="sh${i}-arrow">›</div>
+      </div>
+      <div class="session-card-body" id="sh${i}">
+        ${exercises.map(ex => {
+          const exSets = sets.filter(s => s.exercise_name === ex);
+          const best = exSets.reduce((b, s) => s.weight_lbs > (b?.weight_lbs || 0) ? s : b, null);
+          return `<div class="session-ex-row">
+            <span>${ex}</span>
+            <span style="color:var(--g5);">${exSets.length} sets${best?.weight_lbs ? ' · ${best.weight_lbs}lbs x ${best.reps}' : ''}</span>
+          </div>`;
+        }).join('')}
+        ${session.ai_feedback ? `<div class="session-feedback">💬 ${session.ai_feedback}</div>` : ''}
+      </div>
+    </div>`;
+  });
+
+  container.innerHTML = html;
+}
+
+function toggleSessionHistory(id) {
+  const body = document.getElementById(id);
+  const arrow = document.getElementById(id + '-arrow');
+  if (!body) return;
+  const isOpen = body.classList.contains('open');
+  body.classList.toggle('open');
+  if (arrow) arrow.textContent = isOpen ? '›' : '⌄';
+}
+
+async function loadHomeWorkoutData() {
+  const { data: sessions } = await sb.from('workout_sessions')
+    .select('*')
+    .eq('user_id', currentUser.id)
+    .order('completed_at', { ascending: false })
+    .limit(1);
+
+  const noWorkoutCard = document.getElementById('home-no-workout-card');
+  const workoutCard = document.getElementById('home-workout-card');
+
+  if (sessions && sessions.length) {
+    const s = sessions[0];
+    const date = new Date(s.completed_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    setText('home-last-session-name', s.plan_day);
+    setText('home-last-session-meta', date + ' · ' + (s.duration_minutes || '?') + ' min');
+    workoutCard.style.display = 'block';
+    noWorkoutCard.style.display = 'none';
+  } else {
+    workoutCard.style.display = 'none';
+    noWorkoutCard.style.display = 'block';
+  }
+}
 // PROGRESS CHARTS
 let chartData = { weight: [], calories: [] };
 let chartRanges = { weight: 7, calories: 7 };
@@ -1851,7 +1974,7 @@ function switchScreen(name, el) {
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('screen-'+name).classList.add('active');
   if (el) el.classList.add('active');
-  if (name === 'profile') loadProgressCharts();
+  if (name === 'profile') { loadProgressCharts(); loadWorkoutHistory(); }
   if (name === 'workout') loadWorkoutScreen();
 }
 
