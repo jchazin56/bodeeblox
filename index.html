@@ -1940,11 +1940,16 @@ async function saveOnboarding() {
       supplements_custom: obData.suppCustom
     }, { onConflict: 'id' });
     if (error) throw error;
+    // Save body stats separately — non-blocking so it doesn't prevent app loading
     if (obData.weight) {
-      await sb.from('body_stats').upsert({
-        user_id: currentUser.id, logged_date: todayStr(), weight_lbs: obData.weight,
-        body_fat_pct: obData.bf, lean_mass_lbs: obData.bf ? parseFloat((obData.weight*(1-obData.bf/100)).toFixed(1)) : null
-      }, { onConflict: 'user_id,logged_date' });
+      try {
+        await sb.from('body_stats').upsert({
+          user_id: currentUser.id, logged_date: todayStr(), weight_lbs: obData.weight,
+          body_fat_pct: obData.bf, lean_mass_lbs: obData.bf ? parseFloat((obData.weight*(1-obData.bf/100)).toFixed(1)) : null
+        }, { onConflict: 'user_id,logged_date' });
+      } catch(bodyErr) {
+        console.warn('Body stats save failed (non-critical):', bodyErr);
+      }
     }
     hideOnboarding();
     await loadApp();
