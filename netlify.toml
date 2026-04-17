@@ -5,6 +5,9 @@
 [build.environment]
   SECRETS_SCAN_ENABLED = "false"
 
+[functions]
+  timeout = 30
+
 [[headers]]
   for = "/*"
   [headers.values]
