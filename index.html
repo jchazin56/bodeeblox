@@ -1336,16 +1336,16 @@ async function renderWeeklyPlan() {
     const homeReady = !isRest && day.home_exercises?.length;
 
     html += `<div class="workout-day-card ${isDone ? 'today' : ''} ${isRest ? 'rest' : ''}">
-      <div style="display:flex;align-items:center;justify-content:space-between;" ${!isRest ? 'onclick="startWorkoutSession(' + i + ')"' : ''} style="cursor:${isRest ? 'default' : 'pointer'}">
+      <div style="display:flex;align-items:center;justify-content:space-between;cursor:${isRest ? 'default' : 'pointer'}" ${!isRest ? 'onclick="startWorkoutSession(' + i + ')"' : ''}>
         <div>
           <div class="wdc-day">${day.day}${isLast ? ' · Last done' : isDone ? ' · Completed' : ''}</div>
           <div class="wdc-name">${day.name}</div>
           <div class="wdc-meta">${day.focus || ''}</div>
         </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.4rem;" onclick="event.stopPropagation()">
-          ${hasHome ? `<div class="day-mode-toggle" id="toggle-${i}">
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.4rem;">
+          ${hasHome ? `<div class="day-mode-toggle" id="toggle-${i}" onclick="event.stopPropagation()">
             <button class="day-mode-btn ${savedMode === 'gym' ? 'active' : ''}" onclick="setDayMode(${i},'gym')">🏢 Gym</button>
-            <button class="day-mode-btn ${savedMode === 'home' && homeReady ? 'active' : ''}" id="homebtn-${i}" style="${!homeReady ? 'opacity:0.4;cursor:default' : ''}">🏠 Home</button>
+            <button class="day-mode-btn ${savedMode === 'home' && homeReady ? 'active' : ''}" onclick="setDayMode(${i},'home')">🏠 Home</button>
           </div>` : ''}
           ${isRest
             ? '<span style="font-size:1.5rem;">😴</span>'
