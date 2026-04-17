@@ -294,6 +294,11 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
 .vol-bar-wrap { display: flex; align-items: flex-end; gap: 3px; height: 48px; margin: 0.5rem 0; }
 .vol-bar { flex: 1; background: var(--accent); border-radius: 3px 3px 0 0; opacity: 0.7; min-height: 4px; transition: height 0.4s; }
 .vol-bar.today { opacity: 1; }
+
+/* GYM/HOME TOGGLE */
+.day-mode-toggle { display: flex; background: var(--g3); border-radius: 100px; padding: 2px; gap: 2px; flex-shrink: 0; }
+.day-mode-btn { padding: 0.2rem 0.6rem; border-radius: 100px; font-size: 0.68rem; font-weight: 500; cursor: pointer; border: none; background: none; color: var(--g5); font-family: var(--fb); transition: all 0.15s; }
+.day-mode-btn.active { background: var(--g1); color: var(--white); }
 </style>
 </head>
 <body>
@@ -447,6 +452,12 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
         <div class="ob-tag" onclick="toggleTag(this,'bands')">Resistance bands</div>
         <div class="ob-tag" onclick="toggleTag(this,'pullup')">Pull-up bar</div>
         <div class="ob-tag" onclick="toggleTag(this,'bench')">Bench</div>
+        <div class="ob-tag" onclick="toggleTag(this,'dip_bars')">Dip bars</div>
+        <div class="ob-tag" onclick="toggleTag(this,'trx')">TRX / Suspension trainer</div>
+        <div class="ob-tag" onclick="toggleTag(this,'exercise_ball')">Exercise ball</div>
+        <div class="ob-tag" onclick="toggleTag(this,'ab_wheel')">Ab wheel</div>
+        <div class="ob-tag" onclick="toggleTag(this,'jump_rope')">Jump rope</div>
+        <div class="ob-tag" onclick="toggleTag(this,'ankle_weights')">Ankle weights</div>
         <div class="ob-tag" onclick="toggleTag(this,'cardio_machine')">Cardio machine</div>
         <div class="ob-tag" onclick="toggleTag(this,'bodyweight')">Bodyweight only</div>
       </div>
@@ -1223,18 +1234,11 @@ async function generateWorkoutPlan() {
   const duration = userProfile?.session_duration || 60;
 
   try {
-    const res = await fetch('/.netlify/functions/coach', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 2000,
-        system: 'You are an expert strength and conditioning coach. Return ONLY valid JSON, no markdown, no explanation.',
-        messages: [{
-          role: 'user',
-          content: `Create a ${days}-day weekly workout plan for a ${goal} goal. Training style: ${style}. Location: ${loc}${loc === 'home' ? ', equipment: ' + equipment : ''}. Session length: ${duration} min. Injuries/limitations: ${injuries}.
+    const homeEquipmentList = (userProfile?.home_equipment || []).join(', ') || 'bodyweight only';
 
-Return a JSON object with this exact structure:
+    const planPrompt = `Create a ${days}-day workout plan for a ${goal} goal. Training style: ${style}. Session length: ${duration} min. Injuries/limitations: ${injuries}.
+
+Return a JSON object with BOTH gym and home versions for every training day:
 {
   "days": [
     {
@@ -1243,13 +1247,14 @@ Return a JSON object with this exact structure:
       "type": "training",
       "focus": "Chest, Shoulders, Triceps",
       "exercises": [
-        {
-          "name": "Bench Press",
-          "sets": 4,
-          "reps": "8-10",
-          "rest": "2-3 min",
-          "notes": "Focus on chest stretch at bottom"
-        }
+        {"name": "Bench Press", "sets": 4, "reps": "8-10", "rest": "2-3 min", "notes": "Control the descent"},
+        {"name": "Incline DB Press", "sets": 3, "reps": "10-12", "rest": "90 sec", "notes": ""},
+        {"name": "Cable Lateral Raise", "sets": 3, "reps": "12-15", "rest": "60 sec", "notes": ""}
+      ],
+      "home_exercises": [
+        {"name": "Push-ups", "sets": 4, "reps": "12-15", "rest": "90 sec", "notes": "Elevate feet for upper chest focus"},
+        {"name": "DB Shoulder Press", "sets": 3, "reps": "10-12", "rest": "90 sec", "notes": ""},
+        {"name": "Band Lateral Raise", "sets": 3, "reps": "15-20", "rest": "60 sec", "notes": ""}
       ]
     },
     {
@@ -1262,8 +1267,16 @@ Return a JSON object with this exact structure:
   ]
 }
 
-Label days as "Day 1", "Day 2", etc. (not weekday names — the user picks which day to do when). Include exactly ${days} training days and ${7 - days} rest days in a logical order. Each training day should have 4-6 exercises appropriate for ${duration} min sessions.`
-        }]
+Label days as "Day 1", "Day 2", etc. Include exactly ${days} training days and ${7 - days} rest days. Each training day: 4-6 exercises per version, appropriate for ${duration} min. Home exercises must use only this equipment: ${homeEquipmentList}.`;
+
+    const res = await fetch('/.netlify/functions/coach', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 3000,
+        system: 'You are an expert strength and conditioning coach. Return ONLY valid JSON, no markdown, no explanation.',
+        messages: [{ role: 'user', content: planPrompt }]
       })
     });
 
@@ -1304,22 +1317,30 @@ async function renderWeeklyPlan() {
     const isDone = completedDays.has(day.name);
     const isLast = lastSession?.plan_day === day.name;
 
-    html += `<div class="workout-day-card ${isDone ? 'today' : ''} ${isRest ? 'rest' : ''}" ${!isRest ? 'onclick="startWorkoutSession(' + i + ')"' : ''}>
-      <div style="display:flex;align-items:center;justify-content:space-between;">
+    const savedMode = localStorage.getItem('dayMode_' + i) || 'gym';
+    const hasHome = !isRest && day.home_exercises?.length;
+
+    html += `<div class="workout-day-card ${isDone ? 'today' : ''} ${isRest ? 'rest' : ''}">
+      <div style="display:flex;align-items:center;justify-content:space-between;" ${!isRest ? 'onclick="startWorkoutSession(' + i + ')"' : ''} style="cursor:${isRest ? 'default' : 'pointer'}">
         <div>
           <div class="wdc-day">${day.day}${isLast ? ' · Last done' : isDone ? ' · Completed' : ''}</div>
           <div class="wdc-name">${day.name}</div>
           <div class="wdc-meta">${day.focus || ''}</div>
         </div>
-        <div style="text-align:right;">
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.4rem;" onclick="event.stopPropagation()">
+          ${hasHome ? `<div class="day-mode-toggle" id="toggle-${i}">
+            <button class="day-mode-btn ${savedMode === 'gym' ? 'active' : ''}" onclick="setDayMode(${i},'gym')">🏢 Gym</button>
+            <button class="day-mode-btn ${savedMode === 'home' ? 'active' : ''}" onclick="setDayMode(${i},'home')">🏠 Home</button>
+          </div>` : ''}
           ${isRest
             ? '<span style="font-size:1.5rem;">😴</span>'
             : isDone
               ? '<span style="font-size:1.25rem;">✅</span>'
-              : `<div class="pill pill-green" style="font-size:0.65rem;">${day.exercises?.length || 0} exercises</div>`
+              : `<div class="pill pill-green" style="font-size:0.65rem;">${day.exercises?.length || 0} ex</div>`
           }
         </div>
       </div>
+      ${!isRest ? `<div style="margin-top:0.6rem;" onclick="startWorkoutSession(${i})"><div style="font-size:0.75rem;color:var(--accent);">Tap to start →</div></div>` : ''}
       ${isRest && day.tips ? '<div style="margin-top:0.6rem;display:flex;flex-wrap:wrap;gap:0.35rem;">' + day.tips.map(t => '<span style="font-size:0.7rem;color:var(--g5);">• ' + t + '</span>').join('') + '</div>' : ''}
     </div>`;
   });
@@ -1332,14 +1353,16 @@ function startWorkoutSession(dayIndex) {
   const day = currentPlan.days[dayIndex];
   if (!day || day.type === 'rest') return;
 
-  activeSession = { dayIndex, day, sets: {} };
+  const mode = localStorage.getItem('dayMode_' + dayIndex) || 'gym';
+  const exercises = (mode === 'home' && day.home_exercises?.length) ? day.home_exercises : day.exercises;
+  activeSession = { dayIndex, day, sets: {}, mode };
   
-  document.getElementById('session-title').textContent = day.name;
+  document.getElementById('session-title').textContent = day.name + (mode === 'home' ? ' 🏠' : ' 🏢');
   document.getElementById('session-subtitle').textContent = day.day + ' · ' + day.focus;
 
   // Build exercise UI
   let html = '';
-  day.exercises.forEach((ex, ei) => {
+  exercises.forEach((ex, ei) => {
     html += `<div class="exercise-card" style="margin:0.4rem 0;">
       <div class="ex-header" onclick="toggleSessionEx('sex${ei}')">
         <div>
@@ -1377,6 +1400,15 @@ function startWorkoutSession(dayIndex) {
   sessionTimerInterval = setInterval(updateTimer, 1000);
   
   openModal('sessionModal');
+}
+
+function setDayMode(dayIndex, mode) {
+  localStorage.setItem('dayMode_' + dayIndex, mode);
+  const toggle = document.getElementById('toggle-' + dayIndex);
+  if (!toggle) return;
+  toggle.querySelectorAll('.day-mode-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.textContent.includes(mode === 'gym' ? 'Gym' : 'Home'));
+  });
 }
 
 function toggleSessionEx(id) {
@@ -1453,7 +1485,10 @@ async function finishWorkout() {
 
   // Collect all logged sets
   const loggedSets = [];
-  activeSession.day.exercises.forEach((ex, ei) => {
+  const sessionExercises = (activeSession.mode === 'home' && activeSession.day.home_exercises?.length) 
+    ? activeSession.day.home_exercises 
+    : activeSession.day.exercises;
+  sessionExercises.forEach((ex, ei) => {
     let si = 0;
     while (document.getElementById('sw-' + ei + '-' + si)) {
       const weight = parseFloat(document.getElementById('sw-' + ei + '-' + si)?.value) || null;
