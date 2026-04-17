@@ -5,7 +5,10 @@
 [build.environment]
   SECRETS_SCAN_ENABLED = "false"
 
-[functions]
+[functions.coach]
+  timeout = 30
+
+[functions.food-lookup]
   timeout = 30
 
 [[headers]]
