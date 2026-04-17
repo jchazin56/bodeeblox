@@ -1251,7 +1251,7 @@ async function generateWorkoutPlan() {
 
   try {
     // Step 1: Generate gym plan
-    const gymPrompt = `Gym workout plan: ${days} training days + ${7-days} rest days. Goal: ${goal}. Style: ${style}. ${duration} min sessions. Injuries: ${injuries}.
+    const gymPrompt = `GYM workout plan with full commercial gym equipment available (barbells, dumbbells, cables, machines, bench press, squat rack, leg press, etc). Do NOT include resistance bands, TRX, or bodyweight-only exercises unless the goal specifically requires it. Use free weights and machines. ${days} training days + ${7-days} rest days. Goal: ${goal}. Style: ${style}. ${duration} min sessions. Injuries: ${injuries}.
 JSON format (return ONLY this JSON, nothing else):
 {"days":[{"day":"Day 1","name":"NAME","type":"training","focus":"MUSCLES","exercises":[{"name":"EXERCISE","sets":3,"reps":"8-10","rest":"2 min","notes":""}]},{"day":"Day 2","name":"Rest","type":"rest","focus":"Recovery","tips":["Walk","Stretch"]}]}
 Rules: exactly ${days} training days labeled Day 1 through Day ${days+Math.round((7-days)/2)}, ${7-days} rest days, 4 exercises per training day max, keep notes under 5 words.`;
