@@ -1251,12 +1251,28 @@ async function generateWorkoutPlan() {
 
   try {
     // Step 1: Generate gym plan
-    const gymPrompt = `Create a ${days}-day gym workout plan for ${goal}. Style: ${style}. Session: ${duration} min. Injuries: ${injuries}.
-Return JSON: {"days":[{"day":"Day 1","name":"Upper Push","type":"training","focus":"Chest, Shoulders, Triceps","exercises":[{"name":"Bench Press","sets":4,"reps":"8-10","rest":"2-3 min","notes":""}]},{"day":"Day 2","name":"Rest","type":"rest","focus":"Recovery","tips":["Light walk","Foam rolling"]}]}
-Include exactly ${days} training days and ${7-days} rest days. 4-5 exercises per training day.`;
+    const gymPrompt = `Gym workout plan: ${days} training days + ${7-days} rest days. Goal: ${goal}. Style: ${style}. ${duration} min sessions. Injuries: ${injuries}.
+JSON format (return ONLY this JSON, nothing else):
+{"days":[{"day":"Day 1","name":"NAME","type":"training","focus":"MUSCLES","exercises":[{"name":"EXERCISE","sets":3,"reps":"8-10","rest":"2 min","notes":""}]},{"day":"Day 2","name":"Rest","type":"rest","focus":"Recovery","tips":["Walk","Stretch"]}]}
+Rules: exactly ${days} training days labeled Day 1 through Day ${days+Math.round((7-days)/2)}, ${7-days} rest days, 4 exercises per training day max, keep notes under 5 words.`;
 
-    const gymText = await callCoach(gymPrompt, null, 1500);
-    currentPlan = JSON.parse(gymText);
+    const gymText = await callCoach(gymPrompt, null, 2000);
+    let planText = gymText;
+    // Attempt to repair truncated JSON
+    try {
+      currentPlan = JSON.parse(planText);
+    } catch(parseErr) {
+      // Try to extract valid JSON up to last complete day object
+      const lastComplete = planText.lastIndexOf('{"day":');
+      if (lastComplete > 0) {
+        const truncated = planText.substring(0, lastComplete);
+        const lastComma = truncated.lastIndexOf(',');
+        if (lastComma > 0) {
+          planText = truncated.substring(0, lastComma) + ']}';
+          currentPlan = JSON.parse(planText);
+        } else throw parseErr;
+      } else throw parseErr;
+    }
 
     // Save gym plan immediately so user can start using it
     await sb.from('workout_plans').insert({ user_id: currentUser.id, plan: currentPlan });
