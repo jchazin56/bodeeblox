@@ -1281,18 +1281,24 @@ Rules: exactly ${days} training days labeled Day 1 through Day ${days+Math.round
 
     // Step 2: Generate home alternatives in background
     const trainingDays = currentPlan.days.filter(d => d.type === 'training');
+    console.log('[home gen] Starting background home exercise generation for', trainingDays.length, 'training days');
     for (const day of trainingDays) {
+      console.log('[home gen] Generating:', day.name, '(' + day.focus + ')');
       try {
         const homePrompt = `Create a home version of "${day.name}" (${day.focus}) using only: ${homeEquipmentList}. Goal: ${goal}. ${duration} min.
 Return JSON array of exercises only: [{"name":"Push-ups","sets":4,"reps":"12-15","rest":"90 sec","notes":""}]
 Give 4-5 exercises.`;
         const homeText = await callCoach(homePrompt, null, 600);
+        console.log('[home gen] Raw response for', day.name + ':', homeText);
         day.home_exercises = JSON.parse(homeText);
+        console.log('[home gen] Done:', day.name, '→', day.home_exercises.length, 'exercises', day.home_exercises.map(e => e.name));
       } catch(e) {
-        console.warn('Home exercises failed for', day.name, e);
+        console.warn('[home gen] Failed for', day.name, e);
         day.home_exercises = day.exercises; // fallback to gym exercises
+        console.log('[home gen]', day.name, '→ fallback, using', day.home_exercises.length, 'gym exercises');
       }
     }
+    console.log('[home gen] Finished. Summary:', trainingDays.map(d => d.name + ': ' + (d.home_exercises?.length ?? 0)).join(', '));
 
     // Update saved plan with home exercises
     const { data: savedPlan } = await sb.from('workout_plans')
