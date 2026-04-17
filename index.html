@@ -1345,7 +1345,7 @@ async function renderWeeklyPlan() {
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.4rem;" onclick="event.stopPropagation()">
           ${hasHome ? `<div class="day-mode-toggle" id="toggle-${i}">
             <button class="day-mode-btn ${savedMode === 'gym' ? 'active' : ''}" onclick="setDayMode(${i},'gym')">🏢 Gym</button>
-            <button class="day-mode-btn ${savedMode === 'home' && homeReady ? 'active' : ''}" onclick="${homeReady ? 'setDayMode(' + i + ',\'home\')' : 'showToast(\'Home plan still generating...\',\'\'')" style="${!homeReady ? 'opacity:0.4' : ''}">🏠 Home</button>
+            <button class="day-mode-btn ${savedMode === 'home' && homeReady ? 'active' : ''}" id="homebtn-${i}" style="${!homeReady ? 'opacity:0.4;cursor:default' : ''}">🏠 Home</button>
           </div>` : ''}
           ${isRest
             ? '<span style="font-size:1.5rem;">😴</span>'
@@ -1418,21 +1418,32 @@ function startWorkoutSession(dayIndex) {
 }
 
 function setDayMode(dayIndex, mode) {
+  const day = currentPlan?.days?.[dayIndex];
+  if (!day) return;
+  if (mode === 'home' && !day.home_exercises?.length) {
+    showToast('Home plan still generating...', '');
+    return;
+  }
   localStorage.setItem('dayMode_' + dayIndex, mode);
-  // Update toggle buttons visually
   const toggle = document.getElementById('toggle-' + dayIndex);
   if (toggle) {
     toggle.querySelectorAll('.day-mode-btn').forEach(btn => {
       btn.classList.toggle('active', btn.textContent.includes(mode === 'gym' ? 'Gym' : 'Home'));
     });
   }
-  // Update exercise count shown on card
-  const day = currentPlan?.days?.[dayIndex];
-  if (!day) return;
   const exercises = mode === 'home' && day.home_exercises?.length ? day.home_exercises : day.exercises;
   const countEl = document.getElementById('excount-' + dayIndex);
   if (countEl) countEl.textContent = (exercises?.length || 0) + ' ex';
 }
+
+// Wire home buttons after render via event delegation
+document.addEventListener('click', function(e) {
+  const btn = e.target.closest('[id^="homebtn-"]');
+  if (btn) {
+    const idx = parseInt(btn.id.replace('homebtn-', ''));
+    setDayMode(idx, 'home');
+  }
+});
 
 function toggleSessionEx(id) {
   const el = document.getElementById(id);
