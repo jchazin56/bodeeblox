@@ -1220,75 +1220,73 @@ async function loadWorkoutScreen() {
   }
 }
 
+async function callCoach(prompt, system, maxTokens) {
+  const res = await fetch('/.netlify/functions/coach', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: maxTokens || 1500,
+      system: system || 'You are an expert strength and conditioning coach. Return ONLY valid JSON, no markdown, no explanation.',
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+  if (!res.ok) throw new Error('API error ' + res.status);
+  const data = await res.json();
+  let text = data.content?.[0]?.text || '{}';
+  return text.replace(/```json|```/g, '').trim();
+}
+
 async function generateWorkoutPlan() {
   const workoutContent = document.getElementById('workout-content');
-  workoutContent.innerHTML = '<div class="workout-generating"><div class="app-loading-spinner"></div><div>AI is building your personalized plan...</div></div>';
+  workoutContent.innerHTML = '<div class="workout-generating"><div class="app-loading-spinner"></div><div>Building your gym plan...</div></div>';
 
   const goalLabels = { cut: 'fat loss', bulk: 'muscle gain', recomp: 'body recomposition', maintain: 'general fitness' };
   const days = userProfile?.training_days || 4;
   const style = (userProfile?.training_styles || ['strength']).join(', ');
-  const loc = userProfile?.training_location || 'gym';
-  const equipment = userProfile?.home_equipment?.join(', ') || 'full gym';
   const injuries = userProfile?.injuries || 'none';
   const goal = goalLabels[userProfile?.goal] || 'general fitness';
   const duration = userProfile?.session_duration || 60;
+  const homeEquipmentList = (userProfile?.home_equipment || []).join(', ') || 'bodyweight only';
 
   try {
-    const homeEquipmentList = (userProfile?.home_equipment || []).join(', ') || 'bodyweight only';
+    // Step 1: Generate gym plan
+    const gymPrompt = `Create a ${days}-day gym workout plan for ${goal}. Style: ${style}. Session: ${duration} min. Injuries: ${injuries}.
+Return JSON: {"days":[{"day":"Day 1","name":"Upper Push","type":"training","focus":"Chest, Shoulders, Triceps","exercises":[{"name":"Bench Press","sets":4,"reps":"8-10","rest":"2-3 min","notes":""}]},{"day":"Day 2","name":"Rest","type":"rest","focus":"Recovery","tips":["Light walk","Foam rolling"]}]}
+Include exactly ${days} training days and ${7-days} rest days. 4-5 exercises per training day.`;
 
-    const planPrompt = `Create a ${days}-day workout plan for a ${goal} goal. Training style: ${style}. Session length: ${duration} min. Injuries/limitations: ${injuries}.
+    const gymText = await callCoach(gymPrompt, null, 1500);
+    currentPlan = JSON.parse(gymText);
 
-Return a JSON object with BOTH gym and home versions for every training day:
-{
-  "days": [
-    {
-      "day": "Day 1",
-      "name": "Upper Push",
-      "type": "training",
-      "focus": "Chest, Shoulders, Triceps",
-      "exercises": [
-        {"name": "Bench Press", "sets": 4, "reps": "8-10", "rest": "2-3 min", "notes": "Control the descent"},
-        {"name": "Incline DB Press", "sets": 3, "reps": "10-12", "rest": "90 sec", "notes": ""},
-        {"name": "Cable Lateral Raise", "sets": 3, "reps": "12-15", "rest": "60 sec", "notes": ""}
-      ],
-      "home_exercises": [
-        {"name": "Push-ups", "sets": 4, "reps": "12-15", "rest": "90 sec", "notes": "Elevate feet for upper chest focus"},
-        {"name": "DB Shoulder Press", "sets": 3, "reps": "10-12", "rest": "90 sec", "notes": ""},
-        {"name": "Band Lateral Raise", "sets": 3, "reps": "15-20", "rest": "60 sec", "notes": ""}
-      ]
-    },
-    {
-      "day": "Day 2",
-      "name": "Rest & Recovery",
-      "type": "rest",
-      "focus": "Active recovery",
-      "tips": ["Light walk 20-30 min", "Foam rolling", "Prioritize sleep"]
-    }
-  ]
-}
-
-Label days as "Day 1", "Day 2", etc. Include exactly ${days} training days and ${7 - days} rest days. Each training day: 4-6 exercises per version, appropriate for ${duration} min. Home exercises must use only this equipment: ${homeEquipmentList}.`;
-
-    const res = await fetch('/.netlify/functions/coach', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 3000,
-        system: 'You are an expert strength and conditioning coach. Return ONLY valid JSON, no markdown, no explanation.',
-        messages: [{ role: 'user', content: planPrompt }]
-      })
-    });
-
-    if (!res.ok) throw new Error('API error');
-    const data = await res.json();
-    let text = data.content?.[0]?.text || '{}';
-    text = text.replace(/```json|```/g, '').trim();
-    currentPlan = JSON.parse(text);
-
-    // Save to Supabase
+    // Save gym plan immediately so user can start using it
     await sb.from('workout_plans').insert({ user_id: currentUser.id, plan: currentPlan });
+    workoutContent.innerHTML = '<div class="workout-generating"><div class="app-loading-spinner"></div><div>Adding home workout alternatives...</div></div>';
     renderWeeklyPlan();
+
+    // Step 2: Generate home alternatives in background
+    const trainingDays = currentPlan.days.filter(d => d.type === 'training');
+    for (const day of trainingDays) {
+      try {
+        const homePrompt = `Create a home version of "${day.name}" (${day.focus}) using only: ${homeEquipmentList}. Goal: ${goal}. ${duration} min.
+Return JSON array of exercises only: [{"name":"Push-ups","sets":4,"reps":"12-15","rest":"90 sec","notes":""}]
+Give 4-5 exercises.`;
+        const homeText = await callCoach(homePrompt, null, 600);
+        day.home_exercises = JSON.parse(homeText);
+      } catch(e) {
+        console.warn('Home exercises failed for', day.name, e);
+        day.home_exercises = day.exercises; // fallback to gym exercises
+      }
+    }
+
+    // Update saved plan with home exercises
+    const { data: savedPlan } = await sb.from('workout_plans')
+      .select('id').eq('user_id', currentUser.id)
+      .order('created_at', { ascending: false }).limit(1).single();
+    if (savedPlan) {
+      await sb.from('workout_plans').update({ plan: currentPlan }).eq('id', savedPlan.id);
+    }
+    renderWeeklyPlan();
+
   } catch(e) {
     console.error('Plan generation error:', e);
     workoutContent.innerHTML = '<div class="workout-generating"><div style="font-size:1.5rem;">⚠️</div><div>Could not generate plan. Check connection and try again.</div><button onclick="generateWorkoutPlan()" style="margin-top:1rem;padding:0.75rem 1.5rem;background:var(--accent);color:var(--black);border:none;border-radius:12px;font-family:var(--fb);cursor:pointer;">Retry</button></div>';
