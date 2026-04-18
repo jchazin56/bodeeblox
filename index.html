@@ -1287,9 +1287,10 @@ function parseImportSnapshot(text) {
   const lines = text.split(/\r?\n/);
   for (const line of lines) {
     let dateStr = null;
-    const iso = line.match(/\b(\d{4}-\d{2}-\d{2})\b/);
-    if (iso) dateStr = iso[1];
-    else {
+    const iso = line.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/);
+    if (iso) {
+      dateStr = iso[1] + '-' + String(iso[2]).padStart(2, '0') + '-' + String(iso[3]).padStart(2, '0');
+    } else {
       const slash = line.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
       if (slash) {
         const mo = String(slash[1]).padStart(2, '0');
@@ -1334,11 +1335,17 @@ async function runImport() {
 
   if (parsed.weight_lbs) {
     const lean = parsed.body_fat_pct ? parseFloat((parsed.weight_lbs * (1 - parsed.body_fat_pct / 100)).toFixed(1)) : null;
-    const { error } = await sb.from('body_stats').upsert({
-      user_id: currentUser.id, logged_date: todayStr(),
-      weight_lbs: parsed.weight_lbs, body_fat_pct: parsed.body_fat_pct, lean_mass_lbs: lean,
-    }, { onConflict: 'user_id,logged_date' });
-    if (error) console.error('[import] body_stats failed:', error);
+    const bsPayload = {
+      user_id: currentUser.id,
+      logged_date: todayStr(),
+      weight_lbs: parsed.weight_lbs,
+      body_fat_pct: parsed.body_fat_pct,
+      lean_mass_lbs: lean,
+    };
+    console.log('[import] body_stats upsert payload:', bsPayload);
+    const { data: bsData, error: bsErr } = await sb.from('body_stats').upsert(bsPayload, { onConflict: 'user_id,logged_date' }).select();
+    console.log('[import] body_stats response → data:', bsData, 'error:', bsErr);
+    if (bsErr) console.error('[import] body_stats failed:', bsErr.message, '| code:', bsErr.code, '| details:', bsErr.details, '| hint:', bsErr.hint);
     else imported.push('weight ' + parsed.weight_lbs + ' lbs' + (parsed.body_fat_pct ? ', BF ' + parsed.body_fat_pct + '%' : ''));
   }
 
