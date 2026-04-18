@@ -1334,13 +1334,11 @@ async function runImport() {
   const imported = [];
 
   if (parsed.weight_lbs) {
-    const lean = parsed.body_fat_pct ? parseFloat((parsed.weight_lbs * (1 - parsed.body_fat_pct / 100)).toFixed(1)) : null;
     const bsPayload = {
       user_id: currentUser.id,
       logged_date: todayStr(),
       weight_lbs: parsed.weight_lbs,
       body_fat_pct: parsed.body_fat_pct,
-      lean_mass_lbs: lean,
     };
     console.log('[import] body_stats upsert payload:', bsPayload);
     const { data: bsData, error: bsErr } = await sb.from('body_stats').upsert(bsPayload, { onConflict: 'user_id,logged_date' }).select();
