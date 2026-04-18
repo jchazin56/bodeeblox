@@ -907,6 +907,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let currentUser = null;
 let userProfile = null;
 let todayNutrition = [];
+let favoriteNameSet = new Set();
 
 async function init() {
   try {
@@ -993,13 +994,17 @@ function updateNutritionUI(logs) {
 async function loadNutrition() {
   const today = todayStr();
   console.log('[loadNutrition] todayStr():', today, '| user:', currentUser?.id);
-  const { data, error } = await sb.from('nutrition_logs').select('*').eq('user_id', currentUser.id).eq('logged_date', today).order('logged_at');
+  const [{ data, error }, favs] = await Promise.all([
+    sb.from('nutrition_logs').select('*').eq('user_id', currentUser.id).eq('logged_date', today).order('logged_at'),
+    loadFavorites()
+  ]);
   console.log('[loadNutrition] Filtered rows:', data?.length ?? 0, 'error:', error, 'rows:', data);
   if (error) console.error('[loadNutrition] Load failed:', error.message, '| code:', error.code, '| details:', error.details, '| hint:', error.hint);
   // Also fetch all rows (no date filter) to check for timezone mismatches
   const { data: allData } = await sb.from('nutrition_logs').select('logged_date,food_name').eq('user_id', currentUser.id).order('logged_at', { ascending: false }).limit(5);
   console.log('[loadNutrition] Latest 5 rows (any date):', allData);
   todayNutrition = data || [];
+  favoriteNameSet = new Set((favs || []).map(f => (f.food_name || '').toLowerCase().trim()));
   updateNutritionUI(todayNutrition);
   renderMeals(todayNutrition);
 }
@@ -1011,7 +1016,7 @@ function renderMeals(logs) {
   c.innerHTML = Object.entries(g).map(([meal,items]) =>
     `<div class="meal-card">
       <div class="meal-time"><span>${meal}</span><span>${items.reduce((s,i)=>s+(i.calories||0),0)} cal</span></div>
-      ${items.map(i=>`<div class="meal-item"><div class="meal-name">${i.food_name}</div><div style="display:flex;align-items:center;gap:4px;"><div class="meal-cals">${Math.round(i.protein_g||0)}g · ${Math.round(i.calories||0)} cal</div><div class="meal-delete" style="color:#FFBD2E;" onclick="saveMealAsFavorite('${i.id}')">⭐</div><div class="meal-delete" onclick="deleteFood('${i.id}')">✕</div></div></div>`).join('')}
+      ${items.map(i=>{const fav=favoriteNameSet.has((i.food_name||'').toLowerCase().trim());return `<div class="meal-item"><div class="meal-name">${i.food_name}</div><div style="display:flex;align-items:center;gap:4px;"><div class="meal-cals">${Math.round(i.protein_g||0)}g · ${Math.round(i.calories||0)} cal</div><div class="meal-delete" style="color:${fav?'#FFBD2E':'var(--g5)'};" onclick="saveMealAsFavorite('${i.id}')">${fav?'⭐':'☆'}</div><div class="meal-delete" onclick="deleteFood('${i.id}')">✕</div></div></div>`;}).join('')}
     </div>`).join('');
 }
 
@@ -1074,6 +1079,12 @@ function selectFood(name, cal, pro, carb, fat) {
 }
 
 // FAVORITES
+async function refreshFavoriteStars() {
+  const favs = await loadFavorites();
+  favoriteNameSet = new Set((favs || []).map(f => (f.food_name || '').toLowerCase().trim()));
+  if (todayNutrition?.length) renderMeals(todayNutrition);
+}
+
 async function loadFavorites() {
   console.log('[favorites] Loading favorites for user:', currentUser?.id);
   const { data, error } = await sb.from('food_favorites').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false });
@@ -1140,12 +1151,16 @@ async function saveAsFavorite() {
     return showToast('Error: ' + (error.message || 'save failed'), 'error');
   }
   showToast('Saved to favorites ⭐', 'success');
+  await refreshFavoriteStars();
 }
 
 async function saveMealAsFavorite(logId) {
   const meal = todayNutrition.find(m => m.id === logId);
   console.log('[favorites] saveMealAsFavorite → logId:', logId, 'meal:', meal);
   if (!meal) { console.warn('[favorites] meal not found in todayNutrition'); return; }
+  if (favoriteNameSet.has((meal.food_name || '').toLowerCase().trim())) {
+    return showToast(meal.food_name + ' is already a favorite ⭐', '');
+  }
   const payload = {
     user_id: currentUser.id,
     food_name: meal.food_name,
@@ -1163,6 +1178,7 @@ async function saveMealAsFavorite(logId) {
     return showToast('Error saving favorite', 'error');
   }
   showToast(meal.food_name + ' saved to favorites ⭐', 'success');
+  await refreshFavoriteStars();
 }
 
 async function deleteFavorite(id) {
@@ -1174,6 +1190,7 @@ async function deleteFavorite(id) {
     return showToast('Error removing favorite', 'error');
   }
   await renderFavoritesPanel();
+  await refreshFavoriteStars();
 }
 
 async function saveFood() {
