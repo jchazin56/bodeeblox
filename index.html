@@ -856,6 +856,8 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
     <div class="modal-sheet">
       <div class="sheet-handle"></div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;"><div class="sheet-title" style="margin-bottom:0;">Log Food</div><button onclick="closeModal('foodModal')" style="background:var(--g3);border:none;color:var(--g5);width:28px;height:28px;border-radius:50%;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button></div>
+      <button onclick="toggleFavoritesPanel()" style="width:100%;padding:0.5rem;background:var(--g2);border:1px solid var(--g3);border-radius:10px;color:var(--g5);font-family:var(--fb);font-size:0.8rem;cursor:pointer;margin-bottom:0.5rem;">⭐ Favorites</button>
+      <div id="favorites-panel" style="display:none;max-height:200px;overflow-y:auto;margin-bottom:0.75rem;border:1px solid var(--g3);border-radius:12px;"></div>
       <div style="position:relative;margin-bottom:0.75rem;">
         <input class="sheet-input" id="food-name" type="text" placeholder="Search food (e.g. chicken breast)..." autocomplete="off" style="margin-bottom:0;">
         <div id="food-suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--g2);border:1px solid var(--g3);border-radius:12px;z-index:10;max-height:180px;overflow-y:auto;margin-top:4px;"></div>
@@ -880,6 +882,7 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
         <option value="Post-Workout">Post-Workout</option>
       </select>
       <button class="sheet-save" id="food-save-btn" onclick="saveFood()">Save Entry</button>
+      <button class="sheet-save" style="background:var(--g2);color:var(--g5);margin-top:0.5rem;" onclick="saveAsFavorite()">⭐ Save as Favorite</button>
     </div>
   </div>
 
@@ -1001,7 +1004,7 @@ function renderMeals(logs) {
   c.innerHTML = Object.entries(g).map(([meal,items]) =>
     `<div class="meal-card">
       <div class="meal-time"><span>${meal}</span><span>${items.reduce((s,i)=>s+(i.calories||0),0)} cal</span></div>
-      ${items.map(i=>`<div class="meal-item"><div class="meal-name">${i.food_name}</div><div style="display:flex;align-items:center;gap:4px;"><div class="meal-cals">${Math.round(i.protein_g||0)}g · ${Math.round(i.calories||0)} cal</div><div class="meal-delete" onclick="deleteFood('${i.id}')">✕</div></div></div>`).join('')}
+      ${items.map(i=>`<div class="meal-item"><div class="meal-name">${i.food_name}</div><div style="display:flex;align-items:center;gap:4px;"><div class="meal-cals">${Math.round(i.protein_g||0)}g · ${Math.round(i.calories||0)} cal</div><div class="meal-delete" style="color:#FFBD2E;" onclick="saveMealAsFavorite('${i.id}')">⭐</div><div class="meal-delete" onclick="deleteFood('${i.id}')">✕</div></div></div>`).join('')}
     </div>`).join('');
 }
 
@@ -1061,6 +1064,90 @@ function selectFood(name, cal, pro, carb, fat) {
   document.getElementById('food-carbs').value = carb;
   document.getElementById('food-fat').value = fat;
   document.getElementById('food-suggestions').style.display = 'none';
+}
+
+// FAVORITES
+async function loadFavorites() {
+  const { data, error } = await sb.from('food_favorites').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false });
+  if (error) { console.error('[favorites] load failed:', error); return []; }
+  return data || [];
+}
+
+async function renderFavoritesPanel() {
+  const panel = document.getElementById('favorites-panel');
+  const favs = await loadFavorites();
+  if (!favs.length) {
+    panel.innerHTML = '<div style="padding:0.75rem;text-align:center;color:var(--g5);font-size:0.75rem;">No favorites yet.<br>Save a food as favorite to quick-log it later.</div>';
+    return;
+  }
+  panel.innerHTML = favs.map(f => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:0.5rem 0.75rem;border-bottom:1px solid var(--g3);cursor:pointer;" onclick="selectFavorite('${f.id}')">
+      <div style="min-width:0;flex:1;">
+        <div style="font-size:0.85rem;color:var(--white);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f.food_name}</div>
+        <div style="font-size:0.7rem;color:var(--g5);">${Math.round(f.calories||0)} cal · ${Math.round(f.protein_g||0)}g protein</div>
+      </div>
+      <button onclick="event.stopPropagation();deleteFavorite('${f.id}')" style="background:none;border:none;color:var(--g5);cursor:pointer;font-size:0.9rem;padding:0 0.25rem;">✕</button>
+    </div>
+  `).join('');
+}
+
+async function toggleFavoritesPanel() {
+  const panel = document.getElementById('favorites-panel');
+  if (panel.style.display === 'block') { panel.style.display = 'none'; return; }
+  await renderFavoritesPanel();
+  panel.style.display = 'block';
+}
+
+async function selectFavorite(id) {
+  const favs = await loadFavorites();
+  const f = favs.find(x => x.id === id);
+  if (!f) return;
+  document.getElementById('food-name').value = f.food_name || '';
+  document.getElementById('food-calories').value = f.calories || '';
+  document.getElementById('food-protein').value = f.protein_g || '';
+  document.getElementById('food-carbs').value = f.carbs_g || '';
+  document.getElementById('food-fat').value = f.fat_g || '';
+  if (f.meal_type) document.getElementById('food-meal-type').value = f.meal_type;
+  document.getElementById('favorites-panel').style.display = 'none';
+}
+
+async function saveAsFavorite() {
+  const name = document.getElementById('food-name').value.trim();
+  if (!name) return showToast('Enter a food name first', 'error');
+  const payload = {
+    user_id: currentUser.id,
+    food_name: name,
+    calories: parseFloat(document.getElementById('food-calories').value)||0,
+    protein_g: parseFloat(document.getElementById('food-protein').value)||0,
+    carbs_g: parseFloat(document.getElementById('food-carbs').value)||0,
+    fat_g: parseFloat(document.getElementById('food-fat').value)||0,
+    meal_type: document.getElementById('food-meal-type').value,
+  };
+  const { error } = await sb.from('food_favorites').insert(payload);
+  if (error) { console.error('[favorites] save failed:', error); return showToast('Error: ' + (error.message || 'save failed'), 'error'); }
+  showToast('Saved to favorites ⭐', 'success');
+}
+
+async function saveMealAsFavorite(logId) {
+  const meal = todayNutrition.find(m => m.id === logId);
+  if (!meal) return;
+  const { error } = await sb.from('food_favorites').insert({
+    user_id: currentUser.id,
+    food_name: meal.food_name,
+    calories: meal.calories || 0,
+    protein_g: meal.protein_g || 0,
+    carbs_g: meal.carbs_g || 0,
+    fat_g: meal.fat_g || 0,
+    meal_type: meal.meal_type || null,
+  });
+  if (error) { console.error('[favorites] save meal failed:', error); return showToast('Error saving favorite', 'error'); }
+  showToast(meal.food_name + ' saved to favorites ⭐', 'success');
+}
+
+async function deleteFavorite(id) {
+  const { error } = await sb.from('food_favorites').delete().eq('id', id).eq('user_id', currentUser.id);
+  if (error) return showToast('Error removing favorite', 'error');
+  await renderFavoritesPanel();
 }
 
 async function saveFood() {
