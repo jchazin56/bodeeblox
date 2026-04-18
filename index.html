@@ -1016,7 +1016,7 @@ function renderMeals(logs) {
   c.innerHTML = Object.entries(g).map(([meal,items]) =>
     `<div class="meal-card">
       <div class="meal-time"><span>${meal}</span><span>${items.reduce((s,i)=>s+(i.calories||0),0)} cal</span></div>
-      ${items.map(i=>{const fav=favoriteNameSet.has((i.food_name||'').toLowerCase().trim());return `<div class="meal-item"><div class="meal-name">${i.food_name}</div><div style="display:flex;align-items:center;gap:4px;"><div class="meal-cals">${Math.round(i.protein_g||0)}g · ${Math.round(i.calories||0)} cal</div><div class="meal-delete" style="color:${fav?'#FFBD2E':'var(--g5)'};" onclick="saveMealAsFavorite('${i.id}')">${fav?'⭐':'☆'}</div><div class="meal-delete" onclick="deleteFood('${i.id}')">✕</div></div></div>`;}).join('')}
+      ${items.map(i=>{const fav=favoriteNameSet.has((i.food_name||'').toLowerCase().trim());return `<div class="meal-item"><div class="meal-name">${i.food_name}</div><div style="display:flex;align-items:center;gap:4px;"><div class="meal-cals">${Math.round(i.protein_g||0)}g · ${Math.round(i.calories||0)} cal</div><div id="star-${i.id}" class="meal-delete" style="color:${fav?'#FFBD2E':'var(--g5)'};" onclick="toggleMealFavorite('${i.id}')">${fav?'⭐':'☆'}</div><div class="meal-delete" onclick="deleteFood('${i.id}')">✕</div></div></div>`;}).join('')}
     </div>`).join('');
 }
 
@@ -1154,31 +1154,57 @@ async function saveAsFavorite() {
   await refreshFavoriteStars();
 }
 
-async function saveMealAsFavorite(logId) {
+function updateStarsForName(nameKey, filled) {
+  todayNutrition.forEach(m => {
+    if ((m.food_name || '').toLowerCase().trim() === nameKey) {
+      const el = document.getElementById('star-' + m.id);
+      if (el) {
+        el.textContent = filled ? '⭐' : '☆';
+        el.style.color = filled ? '#FFBD2E' : 'var(--g5)';
+      }
+    }
+  });
+}
+
+async function toggleMealFavorite(logId) {
   const meal = todayNutrition.find(m => m.id === logId);
-  console.log('[favorites] saveMealAsFavorite → logId:', logId, 'meal:', meal);
+  console.log('[favorites] toggleMealFavorite → logId:', logId, 'meal:', meal);
   if (!meal) { console.warn('[favorites] meal not found in todayNutrition'); return; }
-  if (favoriteNameSet.has((meal.food_name || '').toLowerCase().trim())) {
-    return showToast(meal.food_name + ' is already a favorite ⭐', '');
+  const nameKey = (meal.food_name || '').toLowerCase().trim();
+  const isFav = favoriteNameSet.has(nameKey);
+
+  if (isFav) {
+    console.log('[favorites] Removing by food_name:', meal.food_name);
+    const { error } = await sb.from('food_favorites').delete().eq('user_id', currentUser.id).eq('food_name', meal.food_name);
+    console.log('[favorites] Delete response → error:', error);
+    if (error) {
+      console.error('[favorites] Remove failed:', error.message, '| code:', error.code, '| details:', error.details, '| hint:', error.hint);
+      return showToast('Error removing favorite', 'error');
+    }
+    favoriteNameSet.delete(nameKey);
+    updateStarsForName(nameKey, false);
+    showToast('Removed from favorites', '');
+  } else {
+    const payload = {
+      user_id: currentUser.id,
+      food_name: meal.food_name,
+      calories: meal.calories || 0,
+      protein_g: meal.protein_g || 0,
+      carbs_g: meal.carbs_g || 0,
+      fat_g: meal.fat_g || 0,
+      meal_type: meal.meal_type || null,
+    };
+    console.log('[favorites] Inserting from meal into food_favorites:', payload);
+    const { data, error } = await sb.from('food_favorites').insert(payload).select();
+    console.log('[favorites] Insert response → data:', data, 'error:', error);
+    if (error) {
+      console.error('[favorites] Save meal failed:', error.message, '| code:', error.code, '| details:', error.details, '| hint:', error.hint);
+      return showToast('Error saving favorite', 'error');
+    }
+    favoriteNameSet.add(nameKey);
+    updateStarsForName(nameKey, true);
+    showToast(meal.food_name + ' saved to favorites ⭐', 'success');
   }
-  const payload = {
-    user_id: currentUser.id,
-    food_name: meal.food_name,
-    calories: meal.calories || 0,
-    protein_g: meal.protein_g || 0,
-    carbs_g: meal.carbs_g || 0,
-    fat_g: meal.fat_g || 0,
-    meal_type: meal.meal_type || null,
-  };
-  console.log('[favorites] Inserting from meal into food_favorites:', payload);
-  const { data, error } = await sb.from('food_favorites').insert(payload).select();
-  console.log('[favorites] Insert response → data:', data, 'error:', error);
-  if (error) {
-    console.error('[favorites] Save meal failed:', error.message, '| code:', error.code, '| details:', error.details, '| hint:', error.hint);
-    return showToast('Error saving favorite', 'error');
-  }
-  showToast(meal.food_name + ' saved to favorites ⭐', 'success');
-  await refreshFavoriteStars();
 }
 
 async function deleteFavorite(id) {
