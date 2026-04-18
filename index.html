@@ -948,7 +948,7 @@ async function loadProfile() {
 async function loadTodayData() {
   const today = todayStr();
   const [{ data: nut }, { data: ws }] = await Promise.all([
-    sb.from('nutrition_logs').select('*').eq('user_id', currentUser.id).eq('date', today),
+    sb.from('nutrition_logs').select('*').eq('user_id', currentUser.id).eq('logged_date', today),
     sb.from('body_stats').select('*').eq('user_id', currentUser.id).order('logged_date', {ascending:false}).limit(1)
   ]);
   todayNutrition = nut || [];
@@ -966,7 +966,7 @@ async function loadTodayData() {
 }
 
 function updateNutritionUI(logs) {
-  const t = logs.reduce((a,l) => ({ cal: a.cal+(l.calories||0), pro: a.pro+(l.protein||0), carb: a.carb+(l.carbs||0), fat: a.fat+(l.fat||0) }), {cal:0,pro:0,carb:0,fat:0});
+  const t = logs.reduce((a,l) => ({ cal: a.cal+(l.calories||0), pro: a.pro+(l.protein_g||0), carb: a.carb+(l.carbs_g||0), fat: a.fat+(l.fat_g||0) }), {cal:0,pro:0,carb:0,fat:0});
   const gP = userProfile?.goal_protein||160, gC = userProfile?.goal_calories||2400;
   setText('stat-protein', Math.round(t.pro));
   setText('stat-protein-sub', `${gP}g target · ${Math.max(0,Math.round(gP-t.pro))}g to go`);
@@ -988,7 +988,7 @@ function updateNutritionUI(logs) {
 }
 
 async function loadNutrition() {
-  const { data } = await sb.from('nutrition_logs').select('*').eq('user_id', currentUser.id).eq('date', todayStr()).order('logged_at');
+  const { data } = await sb.from('nutrition_logs').select('*').eq('user_id', currentUser.id).eq('logged_date', todayStr()).order('logged_at');
   todayNutrition = data || [];
   updateNutritionUI(todayNutrition);
   renderMeals(todayNutrition);
@@ -1001,7 +1001,7 @@ function renderMeals(logs) {
   c.innerHTML = Object.entries(g).map(([meal,items]) =>
     `<div class="meal-card">
       <div class="meal-time"><span>${meal}</span><span>${items.reduce((s,i)=>s+(i.calories||0),0)} cal</span></div>
-      ${items.map(i=>`<div class="meal-item"><div class="meal-name">${i.food_name}</div><div style="display:flex;align-items:center;gap:4px;"><div class="meal-cals">${Math.round(i.protein||0)}g · ${Math.round(i.calories||0)} cal</div><div class="meal-delete" onclick="deleteFood('${i.id}')">✕</div></div></div>`).join('')}
+      ${items.map(i=>`<div class="meal-item"><div class="meal-name">${i.food_name}</div><div style="display:flex;align-items:center;gap:4px;"><div class="meal-cals">${Math.round(i.protein_g||0)}g · ${Math.round(i.calories||0)} cal</div><div class="meal-delete" onclick="deleteFood('${i.id}')">✕</div></div></div>`).join('')}
     </div>`).join('');
 }
 
@@ -1069,12 +1069,12 @@ async function saveFood() {
   const btn = document.getElementById('food-save-btn');
   btn.disabled = true; btn.textContent = 'Saving...';
   const payload = {
-    user_id: currentUser.id, date: todayStr(),
+    user_id: currentUser.id, logged_date: todayStr(),
     food_name: name, meal_type: document.getElementById('food-meal-type').value,
     calories: parseFloat(document.getElementById('food-calories').value)||0,
-    protein: parseFloat(document.getElementById('food-protein').value)||0,
-    carbs: parseFloat(document.getElementById('food-carbs').value)||0,
-    fat: parseFloat(document.getElementById('food-fat').value)||0,
+    protein_g: parseFloat(document.getElementById('food-protein').value)||0,
+    carbs_g: parseFloat(document.getElementById('food-carbs').value)||0,
+    fat_g: parseFloat(document.getElementById('food-fat').value)||0,
   };
   console.log('[saveFood] Inserting into nutrition_logs:', payload);
   const { data, error } = await sb.from('nutrition_logs').insert(payload).select();
@@ -1106,7 +1106,7 @@ async function saveBodyWeight() {
 
 function generateInsight(logs) {
   const gP = userProfile?.goal_protein||160;
-  const totP = logs.reduce((s,l)=>s+(l.protein||0),0);
+  const totP = logs.reduce((s,l)=>s+(l.protein_g||0),0);
   const diff = Math.round(gP-totP);
   const h = new Date().getHours();
   let msg = diff > 80 && h < 14
@@ -1713,16 +1713,16 @@ async function loadProgressCharts() {
 
   const [{ data: weightData }, { data: nutData }] = await Promise.all([
     sb.from('body_stats').select('logged_date,weight_lbs,body_fat_pct').eq('user_id', currentUser.id).gte('logged_date', since).order('logged_date', { ascending: true }),
-    sb.from('nutrition_logs').select('date,calories,protein').eq('user_id', currentUser.id).gte('date', since)
+    sb.from('nutrition_logs').select('logged_date,calories,protein_g').eq('user_id', currentUser.id).gte('logged_date', since)
   ]);
 
   chartData.weight = (weightData || []).filter(d => d.weight_lbs);
 
   // Group nutrition by date
   const nutByDay = (nutData || []).reduce((a, l) => {
-    a[l.date] = (a[l.date] || { cal: 0, pro: 0 });
-    a[l.date].cal += (l.calories || 0);
-    a[l.date].pro += (l.protein || 0);
+    a[l.logged_date] = (a[l.logged_date] || { cal: 0, pro: 0 });
+    a[l.logged_date].cal += (l.calories || 0);
+    a[l.logged_date].pro += (l.protein_g || 0);
     return a;
   }, {});
   chartData.calories = Object.entries(nutByDay).map(([date, v]) => ({ date, calories: Math.round(v.cal), protein: Math.round(v.pro) })).sort((a, b) => a.date.localeCompare(b.date));
@@ -2208,8 +2208,8 @@ async function sendCoachMsg() {
 
   try {
     const todayNut = todayNutrition.reduce((a, l) => ({
-      cal: a.cal + (l.calories || 0), pro: a.pro + (l.protein || 0),
-      carb: a.carb + (l.carbs || 0), fat: a.fat + (l.fat || 0)
+      cal: a.cal + (l.calories || 0), pro: a.pro + (l.protein_g || 0),
+      carb: a.carb + (l.carbs_g || 0), fat: a.fat + (l.fat_g || 0)
     }), { cal: 0, pro: 0, carb: 0, fat: 0 });
 
     // Fetch recent body stats for coach context
@@ -2222,15 +2222,15 @@ async function sendCoachMsg() {
     // Fetch recent nutrition average (last 7 days)
     const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     const { data: recentNut } = await sb.from('nutrition_logs')
-      .select('calories,protein,carbs,fat,date')
+      .select('calories,protein_g,carbs_g,fat_g,logged_date')
       .eq('user_id', currentUser.id)
-      .gte('date', sevenDaysAgo.toISOString().split('T')[0]);
+      .gte('logged_date', sevenDaysAgo.toISOString().split('T')[0]);
 
     const avgNut = recentNut?.length ? recentNut.reduce((a,l) => ({
-      cal: a.cal+(l.calories||0), pro: a.pro+(l.protein||0)
+      cal: a.cal+(l.calories||0), pro: a.pro+(l.protein_g||0)
     }), {cal:0,pro:0}) : null;
-    const avgCal = avgNut ? Math.round(avgNut.cal / Math.max(1, [...new Set(recentNut.map(l=>l.date))].length)) : null;
-    const avgPro = avgNut ? Math.round(avgNut.pro / Math.max(1, [...new Set(recentNut.map(l=>l.date))].length)) : null;
+    const avgCal = avgNut ? Math.round(avgNut.cal / Math.max(1, [...new Set(recentNut.map(l=>l.logged_date))].length)) : null;
+    const avgPro = avgNut ? Math.round(avgNut.pro / Math.max(1, [...new Set(recentNut.map(l=>l.logged_date))].length)) : null;
 
     const latestStat = recentStats?.[0];
     const suppLabels = { protein_powder:'Protein powder', creatine:'Creatine', pre_workout:'Pre-workout', omega3:'Omega-3', vitamin_d:'Vitamin D', magnesium:'Magnesium', multivitamin:'Multivitamin', peptides:'Peptides/TRT' };
