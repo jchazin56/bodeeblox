@@ -991,7 +991,14 @@ function updateNutritionUI(logs) {
 }
 
 async function loadNutrition() {
-  const { data } = await sb.from('nutrition_logs').select('*').eq('user_id', currentUser.id).eq('logged_date', todayStr()).order('logged_at');
+  const today = todayStr();
+  console.log('[loadNutrition] todayStr():', today, '| user:', currentUser?.id);
+  const { data, error } = await sb.from('nutrition_logs').select('*').eq('user_id', currentUser.id).eq('logged_date', today).order('logged_at');
+  console.log('[loadNutrition] Filtered rows:', data?.length ?? 0, 'error:', error, 'rows:', data);
+  if (error) console.error('[loadNutrition] Load failed:', error.message, '| code:', error.code, '| details:', error.details, '| hint:', error.hint);
+  // Also fetch all rows (no date filter) to check for timezone mismatches
+  const { data: allData } = await sb.from('nutrition_logs').select('logged_date,food_name').eq('user_id', currentUser.id).order('logged_at', { ascending: false }).limit(5);
+  console.log('[loadNutrition] Latest 5 rows (any date):', allData);
   todayNutrition = data || [];
   updateNutritionUI(todayNutrition);
   renderMeals(todayNutrition);
