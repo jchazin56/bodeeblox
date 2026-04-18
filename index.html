@@ -1068,8 +1068,10 @@ function selectFood(name, cal, pro, carb, fat) {
 
 // FAVORITES
 async function loadFavorites() {
+  console.log('[favorites] Loading favorites for user:', currentUser?.id);
   const { data, error } = await sb.from('food_favorites').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false });
-  if (error) { console.error('[favorites] load failed:', error); return []; }
+  console.log('[favorites] Load response → count:', data?.length ?? 0, 'error:', error);
+  if (error) { console.error('[favorites] Load failed:', error.message, '| code:', error.code, '| details:', error.details, '| hint:', error.hint); return []; }
   return data || [];
 }
 
@@ -1123,15 +1125,21 @@ async function saveAsFavorite() {
     fat_g: parseFloat(document.getElementById('food-fat').value)||0,
     meal_type: document.getElementById('food-meal-type').value,
   };
-  const { error } = await sb.from('food_favorites').insert(payload);
-  if (error) { console.error('[favorites] save failed:', error); return showToast('Error: ' + (error.message || 'save failed'), 'error'); }
+  console.log('[favorites] Inserting from form into food_favorites:', payload);
+  const { data, error } = await sb.from('food_favorites').insert(payload).select();
+  console.log('[favorites] Insert response → data:', data, 'error:', error);
+  if (error) {
+    console.error('[favorites] Save failed:', error.message, '| code:', error.code, '| details:', error.details, '| hint:', error.hint);
+    return showToast('Error: ' + (error.message || 'save failed'), 'error');
+  }
   showToast('Saved to favorites ⭐', 'success');
 }
 
 async function saveMealAsFavorite(logId) {
   const meal = todayNutrition.find(m => m.id === logId);
-  if (!meal) return;
-  const { error } = await sb.from('food_favorites').insert({
+  console.log('[favorites] saveMealAsFavorite → logId:', logId, 'meal:', meal);
+  if (!meal) { console.warn('[favorites] meal not found in todayNutrition'); return; }
+  const payload = {
     user_id: currentUser.id,
     food_name: meal.food_name,
     calories: meal.calories || 0,
@@ -1139,14 +1147,25 @@ async function saveMealAsFavorite(logId) {
     carbs_g: meal.carbs_g || 0,
     fat_g: meal.fat_g || 0,
     meal_type: meal.meal_type || null,
-  });
-  if (error) { console.error('[favorites] save meal failed:', error); return showToast('Error saving favorite', 'error'); }
+  };
+  console.log('[favorites] Inserting from meal into food_favorites:', payload);
+  const { data, error } = await sb.from('food_favorites').insert(payload).select();
+  console.log('[favorites] Insert response → data:', data, 'error:', error);
+  if (error) {
+    console.error('[favorites] Save meal failed:', error.message, '| code:', error.code, '| details:', error.details, '| hint:', error.hint);
+    return showToast('Error saving favorite', 'error');
+  }
   showToast(meal.food_name + ' saved to favorites ⭐', 'success');
 }
 
 async function deleteFavorite(id) {
+  console.log('[favorites] Deleting favorite id:', id);
   const { error } = await sb.from('food_favorites').delete().eq('id', id).eq('user_id', currentUser.id);
-  if (error) return showToast('Error removing favorite', 'error');
+  console.log('[favorites] Delete response → error:', error);
+  if (error) {
+    console.error('[favorites] Delete failed:', error.message, '| code:', error.code, '| details:', error.details, '| hint:', error.hint);
+    return showToast('Error removing favorite', 'error');
+  }
   await renderFavoritesPanel();
 }
 
