@@ -832,6 +832,7 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
         <div class="settings-item" onclick="closeModal('profileModal');openModal('weightModal');"><div class="si-left"><div class="si-icon">⚖️</div><div class="si-text">Log Body Weight</div></div><div class="si-arrow">›</div></div>
         <div class="settings-item" onclick="closeModal('profileModal');startEditProfile();"><div class="si-left"><div class="si-icon">✏️</div><div class="si-text">Edit Profile & Goals</div></div><div class="si-arrow">›</div></div>
         <div class="settings-item" id="full-profile-btn"><div class="si-left"><div class="si-icon">👤</div><div class="si-text">Full Profile</div></div><div class="si-arrow">›</div></div>
+        <div class="settings-item" onclick="closeModal('profileModal');openModal('importModal');"><div class="si-left"><div class="si-icon">📋</div><div class="si-text">Import from another app</div></div><div class="si-arrow">›</div></div>
       </div>
       <button onclick="sb.auth.signOut();closeModal('profileModal');" style="width:100%;background:rgba(255,95,87,0.1);border:1px solid rgba(255,95,87,0.2);color:var(--danger);border-radius:12px;padding:0.875rem;font-family:var(--fb);font-size:0.9rem;cursor:pointer;">Sign Out</button>
     </div>
@@ -894,6 +895,18 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
       <input class="sheet-input" id="weight-val" type="number" placeholder="Weight in lbs" inputmode="decimal" step="0.1">
       <input class="sheet-input" id="bf-val" type="number" placeholder="Body fat % (optional)" inputmode="decimal" step="0.1">
       <button class="sheet-save" onclick="saveBodyWeight()">Save</button>
+    </div>
+  </div>
+
+  <!-- IMPORT MODAL -->
+  <div class="modal-overlay" id="importModal" onclick="if(event.target===this)closeModal('importModal')">
+    <div class="modal-sheet">
+      <div class="sheet-handle"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;"><div class="sheet-title" style="margin-bottom:0;">Import from another app</div><button onclick="closeModal('importModal')" style="background:var(--g3);border:none;color:var(--g5);width:28px;height:28px;border-radius:50%;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button></div>
+      <div style="font-size:0.72rem;color:var(--g5);margin-bottom:0.75rem;line-height:1.4;">Paste your trainer context snapshot below. We'll extract stats and recent meals, then hand the full text to your coach so you can pick up right where you left off.</div>
+      <textarea class="sheet-input" id="import-text" placeholder="Paste snapshot here..." style="min-height:220px;resize:vertical;font-family:var(--fb);font-size:0.8rem;line-height:1.4;"></textarea>
+      <div id="import-summary" style="display:none;margin:0.5rem 0;padding:0.75rem;background:var(--g2);border:1px solid var(--g3);border-radius:10px;font-size:0.75rem;color:var(--g5);line-height:1.5;"></div>
+      <button class="sheet-save" id="import-submit-btn" onclick="runImport()">Import & Review with Coach</button>
     </div>
   </div>
 
@@ -1258,6 +1271,119 @@ async function saveBodyWeight() {
   closeModal('profileModal');
   showToast('Weight logged ✓', 'success');
   await loadTodayData();
+}
+
+// IMPORT PAST DATA
+function parseImportSnapshot(text) {
+  const out = { weight_lbs: null, body_fat_pct: null, waist_in: null, nutrition: [] };
+  const wm = text.match(/(?:^|\n|[^a-z])weight[:\s]+([\d.]+)\s*(?:lbs?|pounds?)?/i);
+  if (wm) out.weight_lbs = parseFloat(wm[1]);
+  const bfm = text.match(/(?:body\s*fat|\bbf)[:\s]+([\d.]+)\s*%?/i);
+  if (bfm) out.body_fat_pct = parseFloat(bfm[1]);
+  const wsm = text.match(/waist[:\s]+([\d.]+)\s*(?:inches?|in|")?/i);
+  if (wsm) out.waist_in = parseFloat(wsm[1]);
+
+  const lines = text.split(/\r?\n/);
+  for (const line of lines) {
+    let dateStr = null;
+    const iso = line.match(/\b(\d{4}-\d{2}-\d{2})\b/);
+    if (iso) dateStr = iso[1];
+    else {
+      const slash = line.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
+      if (slash) {
+        const mo = String(slash[1]).padStart(2, '0');
+        const d = String(slash[2]).padStart(2, '0');
+        let y = slash[3] || String(new Date().getFullYear());
+        if (y.length === 2) y = '20' + y;
+        dateStr = y + '-' + mo + '-' + d;
+      }
+    }
+    if (!dateStr) continue;
+
+    const calM = line.match(/\b(\d{2,5})\s*(?:cal|kcal|calories)\b/i);
+    const pM = line.match(/\b(\d{1,3})\s*g?\s*(?:protein|pro)\b/i);
+    const cM = line.match(/\b(\d{1,3})\s*g?\s*(?:carbs?|carb)\b/i);
+    const fM = line.match(/\b(\d{1,3})\s*g?\s*fat\b/i);
+    if (!calM && !pM && !cM && !fM) continue;
+
+    out.nutrition.push({
+      logged_date: dateStr,
+      food_name: 'Imported daily total',
+      meal_type: null,
+      calories: calM ? parseInt(calM[1]) : 0,
+      protein_g: pM ? parseFloat(pM[1]) : 0,
+      carbs_g: cM ? parseFloat(cM[1]) : 0,
+      fat_g: fM ? parseFloat(fM[1]) : 0,
+    });
+  }
+  return out;
+}
+
+async function runImport() {
+  const text = document.getElementById('import-text').value.trim();
+  if (!text) return showToast('Paste your snapshot first', 'error');
+  const btn = document.getElementById('import-submit-btn');
+  const summaryEl = document.getElementById('import-summary');
+  btn.disabled = true; btn.textContent = 'Importing...';
+  console.log('[import] Raw text length:', text.length);
+
+  const parsed = parseImportSnapshot(text);
+  console.log('[import] Parsed:', parsed);
+  const imported = [];
+
+  if (parsed.weight_lbs) {
+    const lean = parsed.body_fat_pct ? parseFloat((parsed.weight_lbs * (1 - parsed.body_fat_pct / 100)).toFixed(1)) : null;
+    const { error } = await sb.from('body_stats').upsert({
+      user_id: currentUser.id, logged_date: todayStr(),
+      weight_lbs: parsed.weight_lbs, body_fat_pct: parsed.body_fat_pct, lean_mass_lbs: lean,
+    }, { onConflict: 'user_id,logged_date' });
+    if (error) console.error('[import] body_stats failed:', error);
+    else imported.push('weight ' + parsed.weight_lbs + ' lbs' + (parsed.body_fat_pct ? ', BF ' + parsed.body_fat_pct + '%' : ''));
+  }
+
+  if (parsed.waist_in) {
+    const { error } = await sb.from('users').update({ waist_inches: parsed.waist_in }).eq('id', currentUser.id);
+    if (error) console.error('[import] waist update failed:', error);
+    else {
+      imported.push('waist ' + parsed.waist_in + '"');
+      if (userProfile) userProfile.waist_inches = parsed.waist_in;
+    }
+  }
+
+  let nutCount = 0;
+  if (parsed.nutrition.length) {
+    const dates = [...new Set(parsed.nutrition.map(n => n.logged_date))];
+    const { data: existing } = await sb.from('nutrition_logs')
+      .select('logged_date').eq('user_id', currentUser.id).in('logged_date', dates);
+    const occupied = new Set((existing || []).map(r => r.logged_date));
+    const toInsert = parsed.nutrition
+      .filter(n => !occupied.has(n.logged_date))
+      .map(n => ({ ...n, user_id: currentUser.id }));
+    console.log('[import] Nutrition to insert:', toInsert.length, 'of', parsed.nutrition.length, '| skipped dates:', [...occupied]);
+    if (toInsert.length) {
+      const { error } = await sb.from('nutrition_logs').insert(toInsert);
+      if (error) console.error('[import] nutrition insert failed:', error);
+      else nutCount = toInsert.length;
+    }
+  }
+  if (nutCount) imported.push(nutCount + ' nutrition ' + (nutCount === 1 ? 'entry' : 'entries'));
+
+  summaryEl.textContent = imported.length ? 'Imported: ' + imported.join(', ') : 'No structured data extracted — coach will still review the full snapshot.';
+  summaryEl.style.display = 'block';
+  btn.textContent = 'Opening coach...';
+
+  await loadTodayData();
+
+  setTimeout(() => {
+    closeModal('importModal');
+    document.getElementById('import-text').value = '';
+    summaryEl.style.display = 'none';
+    btn.disabled = false; btn.textContent = 'Import & Review with Coach';
+    if (!coachOpen) toggleCoach();
+    const input = document.getElementById('coachInput');
+    input.value = "I'm importing my trainer history. Please review my stats and program.\n\n---\n" + text;
+    sendCoachMsg();
+  }, 1400);
 }
 
 function generateInsight(logs) {
