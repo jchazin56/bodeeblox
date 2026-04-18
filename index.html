@@ -1068,16 +1068,22 @@ async function saveFood() {
   if (!name) return showToast('Enter a food name', 'error');
   const btn = document.getElementById('food-save-btn');
   btn.disabled = true; btn.textContent = 'Saving...';
-  const { error } = await sb.from('nutrition_logs').insert({
+  const payload = {
     user_id: currentUser.id, date: todayStr(),
     food_name: name, meal_type: document.getElementById('food-meal-type').value,
     calories: parseFloat(document.getElementById('food-calories').value)||0,
     protein: parseFloat(document.getElementById('food-protein').value)||0,
     carbs: parseFloat(document.getElementById('food-carbs').value)||0,
     fat: parseFloat(document.getElementById('food-fat').value)||0,
-  });
+  };
+  console.log('[saveFood] Inserting into nutrition_logs:', payload);
+  const { data, error } = await sb.from('nutrition_logs').insert(payload).select();
+  console.log('[saveFood] Supabase response → data:', data, 'error:', error);
   btn.disabled = false; btn.textContent = 'Save Entry';
-  if (error) return showToast('Error saving', 'error');
+  if (error) {
+    console.error('[saveFood] Insert failed:', error.message, '| code:', error.code, '| details:', error.details, '| hint:', error.hint);
+    return showToast('Error saving: ' + (error.message || 'unknown'), 'error');
+  }
   ['food-name','food-calories','food-protein','food-carbs','food-fat'].forEach(id => document.getElementById(id).value='');
   closeModal('foodModal');
   showToast('Food logged ✓', 'success');
