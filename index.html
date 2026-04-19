@@ -2342,14 +2342,31 @@ async function loadWorkoutHistory() {
   const container = document.getElementById('workout-history-container');
   if (!container) return;
 
-  const { data: sessions } = await sb.from('workout_sessions')
-    .select('*')
-    .eq('user_id', currentUser.id)
-    .order('completed_at', { ascending: false })
-    .limit(20);
+  const [{ data: sessions }, { data: weights }] = await Promise.all([
+    sb.from('workout_sessions').select('*').eq('user_id', currentUser.id)
+      .order('completed_at', { ascending: false }).limit(20),
+    sb.from('body_stats').select('logged_date,weight_lbs,body_fat_pct').eq('user_id', currentUser.id)
+      .order('logged_date', { ascending: false }).limit(10)
+  ]);
+
+  let weightsHtml = '';
+  if (weights && weights.length) {
+    weightsHtml = `<div style="margin-bottom:1rem;">
+      <div style="font-size:0.7rem;color:var(--g5);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.5rem;padding:0 0.25rem;">Recent Weight</div>
+      <div style="background:var(--g1);border:1px solid var(--g3);border-radius:14px;overflow:hidden;">
+        ${weights.map((w, i) => {
+          const dateLabel = new Date(w.logged_date + 'T00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:0.6rem 0.85rem;${i > 0 ? 'border-top:1px solid var(--g3);' : ''}">
+            <div style="font-size:0.78rem;color:var(--g5);">${dateLabel}</div>
+            <div style="font-family:var(--fd);font-weight:600;font-size:0.85rem;color:var(--white);">${w.weight_lbs} lbs${w.body_fat_pct ? ' · ' + w.body_fat_pct + '% BF' : ''}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }
 
   if (!sessions || !sessions.length) {
-    container.innerHTML = '<div class="history-empty">No workouts logged yet.<br>Complete your first session to see history.</div>';
+    container.innerHTML = weightsHtml + '<div class="history-empty">No workouts logged yet.<br>Complete your first session to see history.</div>';
     return;
   }
 
@@ -2396,7 +2413,7 @@ async function loadWorkoutHistory() {
     </div>`;
   });
 
-  container.innerHTML = html;
+  container.innerHTML = weightsHtml + html;
 }
 
 function toggleSessionHistory(id) {
