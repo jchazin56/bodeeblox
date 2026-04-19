@@ -2549,7 +2549,6 @@ async function finishWorkout() {
     // Save sets
     if (session && loggedSets.length) {
       const setRows = loggedSets.map(s => ({
-        workout_id: session.id,
         user_id: currentUser.id,
         exercise_name: s.exercise,
         set_number: s.set,
