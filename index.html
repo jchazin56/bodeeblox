@@ -3170,10 +3170,12 @@ function toggleCheck(el) { el.classList.toggle('done'); el.textContent=el.classL
 async function loadCoachHistory() {
   const msgs = document.getElementById('coach-msgs');
   console.log('[coach history] Loading for user:', currentUser?.id);
-  const { data, error } = await sb.from('coach_messages')
+  const { data: recent, error } = await sb.from('coach_messages')
     .select('*')
     .eq('user_id', currentUser.id)
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: false })
+    .limit(20);
+  const data = (recent || []).slice().reverse();
   console.log('[coach history] Loaded', data?.length ?? 0, 'messages', error ? '| error: ' + JSON.stringify(error) : '');
   if (error) console.error('[coach history] query failed:', error.message, '| code:', error.code, '| details:', error.details, '| hint:', error.hint);
   if (!data || data.length === 0) {
@@ -3348,7 +3350,7 @@ Be concise, specific, and encouraging. Use their actual numbers. Speak like a su
       .select('role, content')
       .eq('user_id', currentUser.id)
       .order('created_at', { ascending: false })
-      .limit(10);
+      .limit(8);
 
     const messages = (history || []).reverse().map(m => ({ role: m.role, content: m.content }));
 
