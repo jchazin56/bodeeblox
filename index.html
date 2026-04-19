@@ -950,8 +950,11 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
     <div class="modal-sheet">
       <div class="sheet-handle"></div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;"><div class="sheet-title" style="margin-bottom:0;">Import from another app</div><button onclick="closeModal('importModal')" style="background:var(--g3);border:none;color:var(--g5);width:28px;height:28px;border-radius:50%;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button></div>
-      <div style="font-size:0.72rem;color:var(--g5);margin-bottom:0.75rem;line-height:1.4;">Paste your trainer context snapshot below. We'll extract stats and recent meals, then hand the full text to your coach so you can pick up right where you left off.</div>
-      <textarea class="sheet-input" id="import-text" placeholder="Paste snapshot here..." style="min-height:220px;resize:vertical;font-family:var(--fb);font-size:0.8rem;line-height:1.4;"></textarea>
+      <div style="font-size:0.72rem;color:var(--g5);margin-bottom:0.75rem;line-height:1.4;">Upload a JSON backup file, or paste a trainer context snapshot below. We'll extract stats and recent meals, then hand the full text to your coach so you can pick up right where you left off.</div>
+      <input type="file" id="import-file" accept=".json,application/json" style="display:none;" onchange="handleImportFile(event)">
+      <button type="button" onclick="document.getElementById('import-file').click()" style="width:100%;padding:0.75rem;background:var(--g2);border:1px dashed var(--g3);border-radius:12px;color:var(--g5);font-family:var(--fb);font-size:0.8rem;cursor:pointer;margin-bottom:0.5rem;">📎 Upload JSON backup file</button>
+      <div id="import-file-name" style="display:none;font-size:0.7rem;color:var(--accent);margin-bottom:0.5rem;"></div>
+      <textarea class="sheet-input" id="import-text" placeholder="Or paste snapshot here..." style="min-height:200px;resize:vertical;font-family:var(--fb);font-size:0.8rem;line-height:1.4;"></textarea>
       <div id="import-summary" style="display:none;margin:0.5rem 0;padding:0.75rem;background:var(--g2);border:1px solid var(--g3);border-radius:10px;font-size:0.75rem;color:var(--g5);line-height:1.5;"></div>
       <button class="sheet-save" id="import-submit-btn" onclick="runImport()">Import & Review with Coach</button>
     </div>
@@ -1546,6 +1549,54 @@ async function importBackupJson(backup) {
   if (sessCount) summary.push(sessCount + ' workout ' + (sessCount === 1 ? 'session' : 'sessions') + ' (' + setCount + ' sets)');
 
   return summary;
+}
+
+function handleImportFile(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  const nameEl = document.getElementById('import-file-name');
+  nameEl.textContent = '📎 ' + file.name + ' · parsing...';
+  nameEl.style.display = 'block';
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    let backup;
+    try { backup = JSON.parse(e.target.result); } catch (err) {
+      console.error('[import file] JSON parse failed:', err);
+      nameEl.textContent = '✕ ' + file.name + ' — invalid JSON';
+      nameEl.style.color = 'var(--danger)';
+      return showToast('File is not valid JSON', 'error');
+    }
+    if (!backup || typeof backup !== 'object') {
+      nameEl.textContent = '✕ ' + file.name + ' — unexpected format';
+      nameEl.style.color = 'var(--danger)';
+      return showToast('Unexpected JSON shape', 'error');
+    }
+    nameEl.textContent = '📎 ' + file.name + ' · importing...';
+    const btn = document.getElementById('import-submit-btn');
+    const summaryEl = document.getElementById('import-summary');
+    btn.disabled = true; btn.textContent = 'Importing...';
+    const summary = await importBackupJson(backup);
+    summaryEl.textContent = summary.length ? 'Imported: ' + summary.join(' · ') : 'Nothing imported (empty, all duplicates, or no recognized data).';
+    summaryEl.style.display = 'block';
+    btn.textContent = 'Done';
+    nameEl.textContent = '✓ ' + file.name + ' · imported';
+    nameEl.style.color = 'var(--accent)';
+    await loadTodayData();
+    setTimeout(() => {
+      closeModal('importModal');
+      document.getElementById('import-text').value = '';
+      document.getElementById('import-file').value = '';
+      nameEl.style.display = 'none';
+      summaryEl.style.display = 'none';
+      btn.disabled = false; btn.textContent = 'Import & Review with Coach';
+    }, 3000);
+  };
+  reader.onerror = () => {
+    nameEl.textContent = '✕ ' + file.name + ' — read failed';
+    nameEl.style.color = 'var(--danger)';
+    showToast('Could not read file', 'error');
+  };
+  reader.readAsText(file);
 }
 
 async function runImport() {
