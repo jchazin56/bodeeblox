@@ -3169,14 +3169,14 @@ function toggleCheck(el) { el.classList.toggle('done'); el.textContent=el.classL
 
 async function loadCoachHistory() {
   const msgs = document.getElementById('coach-msgs');
-  const { data } = await sb.from('coach_messages')
+  console.log('[coach history] Loading for user:', currentUser?.id);
+  const { data, error } = await sb.from('coach_messages')
     .select('*')
     .eq('user_id', currentUser.id)
-    .order('created_at', { ascending: true })
-    .limit(50);
+    .order('created_at', { ascending: true });
+  console.log('[coach history] Loaded', data?.length ?? 0, 'messages', error ? '| error: ' + JSON.stringify(error) : '');
+  if (error) console.error('[coach history] query failed:', error.message, '| code:', error.code, '| details:', error.details, '| hint:', error.hint);
   if (!data || data.length === 0) {
-    // Show welcome message if no history
-    const msgs = document.getElementById('coach-msgs');
     if (msgs && !msgs.children.length) {
       appendMsg('assistant', 'Hey! I\'m your AI coach. I know your goals, nutrition, body stats, and training setup. Ask me anything — form tips, nutrition advice, recovery, or just how you\'re tracking overall.', false);
     }
