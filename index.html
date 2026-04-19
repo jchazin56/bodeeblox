@@ -620,7 +620,10 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
   <div class="screen" id="screen-workout">
     <div class="screen-header" style="padding-top:1.25rem;">
       <div class="screen-title">Train</div>
-      <button id="regen-plan-btn" style="background:var(--g2);border:1px solid var(--g3);color:var(--g5);border-radius:10px;padding:0.4rem 0.75rem;font-size:0.75rem;font-family:var(--fb);cursor:pointer;">↻ New Plan</button>
+      <div style="display:flex;gap:0.4rem;">
+        <button onclick="openEditPlan()" style="background:var(--g2);border:1px solid var(--g3);color:var(--g5);border-radius:10px;padding:0.4rem 0.75rem;font-size:0.75rem;font-family:var(--fb);cursor:pointer;">✎ Edit</button>
+        <button id="regen-plan-btn" style="background:var(--g2);border:1px solid var(--g3);color:var(--g5);border-radius:10px;padding:0.4rem 0.75rem;font-size:0.75rem;font-family:var(--fb);cursor:pointer;">↻ New Plan</button>
+      </div>
     </div>
     <div id="workout-content">
       <div class="workout-generating">
@@ -952,6 +955,20 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
       <div class="sheet-handle"></div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;"><div class="sheet-title" id="day-detail-title" style="margin-bottom:0;">—</div><button onclick="closeModal('dayDetailModal')" style="background:var(--g3);border:none;color:var(--g5);width:28px;height:28px;border-radius:50%;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button></div>
       <div id="day-detail-body"></div>
+    </div>
+  </div>
+
+  <!-- EDIT PLAN MODAL -->
+  <div class="modal-overlay" id="editPlanModal" onclick="if(event.target===this)closeModal('editPlanModal')">
+    <div class="modal-sheet" style="max-height:92vh;">
+      <div class="sheet-handle"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;"><div class="sheet-title" style="margin-bottom:0;">Edit Plan</div><button onclick="closeModal('editPlanModal')" style="background:var(--g3);border:none;color:var(--g5);width:28px;height:28px;border-radius:50%;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button></div>
+      <select class="sheet-select" id="edit-day-select" style="margin-bottom:0.5rem;"></select>
+      <div id="edit-day-body" style="overflow-y:auto;max-height:60vh;"></div>
+      <div style="display:flex;gap:0.5rem;margin-top:0.75rem;">
+        <button onclick="closeModal('editPlanModal')" style="flex:1;padding:0.875rem;background:var(--g2);border:1px solid var(--g3);border-radius:12px;color:var(--g5);font-family:var(--fb);font-size:0.875rem;cursor:pointer;">Cancel</button>
+        <button class="sheet-save" style="margin-top:0;flex:1;" onclick="editPlanSave()">Save Plan</button>
+      </div>
     </div>
   </div>
 
@@ -1541,9 +1558,29 @@ let activeSession = null;
 let sessionTimerInterval = null;
 let sessionStartTime = null;
 
+// One-time seed plan for a specific user. Runs once per browser via localStorage guard.
+const SEED_USER_ID = '56c54fb4-30b8-479c-b43c-74f5af5d0ce9';
+const SEED_PLAN_V1 = {"days":[{"day":"Day 1","name":"Chest + Posture","type":"training","focus":"Chest, Posture","exercises":[{"name":"Dead Hangs","sets":3,"reps":"30 sec","rest":"60 sec","notes":"Posture warmup"},{"name":"Wall Slides","sets":3,"reps":"10","rest":"60 sec","notes":"Posture warmup"},{"name":"Face Pulls (light)","sets":3,"reps":"15","rest":"60 sec","notes":"Posture warmup"},{"name":"Glute Bridges","sets":3,"reps":"12","rest":"60 sec","notes":"Posture warmup"},{"name":"Chin Tucks","sets":2,"reps":"10","rest":"60 sec","notes":"Posture warmup"},{"name":"Incline Dumbbell Press","sets":4,"reps":"8-10","rest":"2-3 min","notes":""},{"name":"Flat Dumbbell Press","sets":3,"reps":"8-10","rest":"2 min","notes":""},{"name":"Weighted Pushups","sets":3,"reps":"12","rest":"90 sec","notes":""},{"name":"Cable Fly (slow stretch)","sets":3,"reps":"12-15","rest":"90 sec","notes":"Slow stretch at bottom"},{"name":"Dips (assisted if needed)","sets":3,"reps":"8-12","rest":"90 sec","notes":""},{"name":"Plank","sets":3,"reps":"45 sec","rest":"60 sec","notes":""},{"name":"Ab Wheel / Leg Raises","sets":3,"reps":"10","rest":"60 sec","notes":""}]},{"day":"Day 2","name":"Back + Biceps","type":"training","focus":"Back, Biceps","exercises":[{"name":"Dead Hangs","sets":3,"reps":"30 sec","rest":"60 sec","notes":"Posture warmup"},{"name":"Wall Slides","sets":3,"reps":"10","rest":"60 sec","notes":"Posture warmup"},{"name":"Face Pulls (light)","sets":3,"reps":"15","rest":"60 sec","notes":"Posture warmup"},{"name":"Glute Bridges","sets":3,"reps":"12","rest":"60 sec","notes":"Posture warmup"},{"name":"Chin Tucks","sets":2,"reps":"10","rest":"60 sec","notes":"Posture warmup"},{"name":"Pull-ups / Assisted Pull-ups","sets":4,"reps":"6-8","rest":"2-3 min","notes":""},{"name":"Chest-Supported Row","sets":3,"reps":"10","rest":"2 min","notes":""},{"name":"Lat Pulldown","sets":3,"reps":"10","rest":"2 min","notes":""},{"name":"Single Arm DB Row","sets":3,"reps":"10","rest":"90 sec","notes":""},{"name":"Barbell or DB Curl","sets":3,"reps":"8-10","rest":"90 sec","notes":""},{"name":"Hammer Curl","sets":3,"reps":"10","rest":"60 sec","notes":""},{"name":"Face Pulls (finisher)","sets":3,"reps":"15","rest":"60 sec","notes":""}]},{"day":"Day 3","name":"Lower + Core","type":"training","focus":"Legs, Core","exercises":[{"name":"Dead Hangs","sets":3,"reps":"30 sec","rest":"60 sec","notes":"Posture warmup"},{"name":"Wall Slides","sets":3,"reps":"10","rest":"60 sec","notes":"Posture warmup"},{"name":"Face Pulls (light)","sets":3,"reps":"15","rest":"60 sec","notes":"Posture warmup"},{"name":"Glute Bridges","sets":3,"reps":"12","rest":"60 sec","notes":"Posture warmup"},{"name":"Chin Tucks","sets":2,"reps":"10","rest":"60 sec","notes":"Posture warmup"},{"name":"Romanian Deadlift","sets":4,"reps":"8","rest":"2-3 min","notes":""},{"name":"Bulgarian Split Squats","sets":3,"reps":"10","rest":"2 min","notes":""},{"name":"Leg Press","sets":3,"reps":"12","rest":"2 min","notes":""},{"name":"Walking Lunges","sets":2,"reps":"20 steps","rest":"90 sec","notes":""},{"name":"Cable Crunch","sets":3,"reps":"12","rest":"60 sec","notes":""},{"name":"Side Plank","sets":3,"reps":"30 sec each","rest":"60 sec","notes":""},{"name":"Pallof Press","sets":3,"reps":"10","rest":"60 sec","notes":""}]},{"day":"Day 4","name":"Shoulders + Chest","type":"training","focus":"Shoulders, Chest","exercises":[{"name":"Dead Hangs","sets":3,"reps":"30 sec","rest":"60 sec","notes":"Posture warmup"},{"name":"Wall Slides","sets":3,"reps":"10","rest":"60 sec","notes":"Posture warmup"},{"name":"Face Pulls (light)","sets":3,"reps":"15","rest":"60 sec","notes":"Posture warmup"},{"name":"Glute Bridges","sets":3,"reps":"12","rest":"60 sec","notes":"Posture warmup"},{"name":"Chin Tucks","sets":2,"reps":"10","rest":"60 sec","notes":"Posture warmup"},{"name":"Seated DB Shoulder Press","sets":4,"reps":"8","rest":"2-3 min","notes":""},{"name":"Lateral Raises","sets":4,"reps":"12-15","rest":"90 sec","notes":""},{"name":"Rear Delt Fly","sets":3,"reps":"15","rest":"90 sec","notes":""},{"name":"Incline Machine Press","sets":3,"reps":"10","rest":"2 min","notes":""},{"name":"Cable Chest Fly","sets":3,"reps":"12","rest":"90 sec","notes":""},{"name":"Hanging Knee Raises","sets":3,"reps":"12","rest":"60 sec","notes":""}]},{"day":"Day 5","name":"Conditioning + Arms","type":"training","focus":"Arms, Conditioning","exercises":[{"name":"Dead Hangs","sets":3,"reps":"30 sec","rest":"60 sec","notes":"Posture warmup"},{"name":"Wall Slides","sets":3,"reps":"10","rest":"60 sec","notes":"Posture warmup"},{"name":"Face Pulls (light)","sets":3,"reps":"15","rest":"60 sec","notes":"Posture warmup"},{"name":"Glute Bridges","sets":3,"reps":"12","rest":"60 sec","notes":"Posture warmup"},{"name":"Chin Tucks","sets":2,"reps":"10","rest":"60 sec","notes":"Posture warmup"},{"name":"Pushups (circuit)","sets":3,"reps":"15","rest":"60 sec","notes":""},{"name":"TRX Rows (circuit)","sets":3,"reps":"12","rest":"60 sec","notes":""},{"name":"Dumbbell Curls (circuit)","sets":3,"reps":"12","rest":"60 sec","notes":""},{"name":"Triceps Rope Pushdown","sets":3,"reps":"12","rest":"60 sec","notes":""},{"name":"Bike Sprint (circuit)","sets":3,"reps":"30 sec","rest":"60 sec","notes":""},{"name":"Decline Situps","sets":3,"reps":"12","rest":"60 sec","notes":""},{"name":"Farmer Carries","sets":3,"reps":"40 sec","rest":"60 sec","notes":""}]},{"day":"Day 6","name":"Posture + Core","type":"training","focus":"Posture, Core","exercises":[{"name":"Doorway Chest Stretch","sets":2,"reps":"60 sec","rest":"30 sec","notes":""},{"name":"Wall Slides","sets":3,"reps":"12","rest":"60 sec","notes":""},{"name":"Chin Tucks","sets":3,"reps":"15","rest":"60 sec","notes":""},{"name":"Band Pull-Aparts","sets":3,"reps":"15","rest":"60 sec","notes":""},{"name":"Band Face Pulls","sets":3,"reps":"15","rest":"60 sec","notes":""},{"name":"Kneeling Hip Flexor Stretch","sets":2,"reps":"60 sec each","rest":"30 sec","notes":""},{"name":"Plank","sets":3,"reps":"45 sec","rest":"60 sec","notes":""},{"name":"Side Plank","sets":2,"reps":"30 sec each","rest":"60 sec","notes":""},{"name":"Dead Bug","sets":3,"reps":"10 each side","rest":"60 sec","notes":""},{"name":"Glute Bridges","sets":3,"reps":"15","rest":"60 sec","notes":""},{"name":"Pallof Press","sets":3,"reps":"12 each side","rest":"60 sec","notes":""}]},{"day":"Day 7","name":"Rest & Recovery","type":"rest","focus":"Active recovery","tips":["Light walk 20-30 min","Foam rolling","Stretch","Prioritize sleep and nutrition"]}]};
+
+async function seedPlanIfNeeded() {
+  if (!currentUser || currentUser.id !== SEED_USER_ID) return false;
+  const flagKey = 'plan_seeded_v1_' + currentUser.id;
+  if (localStorage.getItem(flagKey)) return false;
+  console.log('[seed] Seeding plan v1 for target user');
+  const { error: delErr } = await sb.from('workout_plans').delete().eq('user_id', currentUser.id);
+  if (delErr) { console.error('[seed] delete failed:', delErr); return false; }
+  const { error: insErr } = await sb.from('workout_plans').insert({ user_id: currentUser.id, plan: SEED_PLAN_V1 });
+  if (insErr) { console.error('[seed] insert failed:', insErr); return false; }
+  localStorage.setItem(flagKey, '1');
+  console.log('[seed] Seed complete');
+  return true;
+}
+
 async function loadWorkoutScreen() {
   const workoutContent = document.getElementById('workout-content');
   workoutContent.innerHTML = '<div class="workout-generating"><div class="app-loading-spinner"></div><div>Loading your plan...</div></div>';
+
+  await seedPlanIfNeeded();
 
   // Try to load existing plan
   const { data: plans } = await sb.from('workout_plans')
@@ -1556,6 +1593,128 @@ async function loadWorkoutScreen() {
   } else {
     await generateWorkoutPlan();
   }
+}
+
+// EDIT PLAN
+let editingPlan = null;
+let editingDayIdx = 0;
+
+function openEditPlan() {
+  if (!currentPlan?.days?.length) { showToast('No plan loaded yet', 'error'); return; }
+  editingPlan = JSON.parse(JSON.stringify(currentPlan));
+  editingDayIdx = 0;
+  const sel = document.getElementById('edit-day-select');
+  sel.innerHTML = editingPlan.days.map((d, i) => `<option value="${i}">${d.day}: ${d.name}</option>`).join('');
+  sel.value = '0';
+  sel.onchange = () => { editingDayIdx = parseInt(sel.value); renderEditDay(); };
+  renderEditDay();
+  openModal('editPlanModal');
+}
+
+function editInput(val, placeholder, dataKey) {
+  const escaped = String(val == null ? '' : val).replace(/"/g, '&quot;');
+  return `<input class="sheet-input" style="margin-bottom:0;padding:0.45rem 0.6rem;font-size:0.78rem;" value="${escaped}" placeholder="${placeholder}" data-key="${dataKey}">`;
+}
+
+function renderEditDay() {
+  const day = editingPlan.days[editingDayIdx];
+  const body = document.getElementById('edit-day-body');
+  let html = `<div style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:0.75rem;">
+    <label style="font-size:0.68rem;color:var(--g5);">Day Name</label>
+    ${editInput(day.name, 'e.g. Push Day', 'day-name')}
+    <label style="font-size:0.68rem;color:var(--g5);">Focus</label>
+    ${editInput(day.focus, 'e.g. Chest, Shoulders', 'day-focus')}
+    <label style="font-size:0.68rem;color:var(--g5);">Type</label>
+    <select class="sheet-select" style="margin-bottom:0;" data-key="day-type">
+      <option value="training"${day.type === 'training' ? ' selected' : ''}>Training</option>
+      <option value="rest"${day.type === 'rest' ? ' selected' : ''}>Rest</option>
+    </select>
+  </div>`;
+
+  if (day.type === 'rest') {
+    const tipsText = (day.tips || []).join('\n');
+    html += `<label style="font-size:0.68rem;color:var(--g5);">Recovery Tips (one per line)</label>
+      <textarea class="sheet-input" style="min-height:100px;font-size:0.78rem;" data-key="day-tips" placeholder="One tip per line">${tipsText.replace(/</g, '&lt;')}</textarea>`;
+  } else {
+    html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.4rem;">
+      <div style="font-size:0.75rem;font-weight:600;color:var(--white);">Exercises (${(day.exercises || []).length})</div>
+      <button onclick="editPlanAddExercise()" style="background:var(--g2);border:1px solid var(--g3);color:var(--accent);border-radius:8px;padding:0.3rem 0.6rem;font-size:0.7rem;cursor:pointer;">+ Add</button>
+    </div>`;
+    (day.exercises || []).forEach((ex, i) => {
+      html += `<div style="background:var(--g2);border:1px solid var(--g3);border-radius:10px;padding:0.5rem;margin-bottom:0.4rem;" data-ex-idx="${i}">
+        <div style="display:flex;gap:0.3rem;margin-bottom:0.3rem;">
+          ${editInput(ex.name, 'Exercise name', 'ex-name')}
+          <button onclick="editPlanRemoveExercise(${i})" style="flex-shrink:0;background:var(--g3);border:none;color:var(--danger);width:28px;height:28px;border-radius:50%;font-size:0.9rem;cursor:pointer;">✕</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.3rem;margin-bottom:0.3rem;">
+          ${editInput(ex.sets, 'Sets', 'ex-sets')}
+          ${editInput(ex.reps, 'Reps', 'ex-reps')}
+          ${editInput(ex.rest, 'Rest', 'ex-rest')}
+        </div>
+        ${editInput(ex.notes, 'Notes (optional)', 'ex-notes')}
+      </div>`;
+    });
+  }
+  body.innerHTML = html;
+}
+
+function readEditDayIntoPlan() {
+  const body = document.getElementById('edit-day-body');
+  const day = editingPlan.days[editingDayIdx];
+  day.name = body.querySelector('[data-key="day-name"]').value.trim() || day.name;
+  day.focus = body.querySelector('[data-key="day-focus"]').value.trim();
+  day.type = body.querySelector('[data-key="day-type"]').value;
+  if (day.type === 'rest') {
+    day.tips = body.querySelector('[data-key="day-tips"]').value.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    delete day.exercises;
+  } else {
+    const rows = body.querySelectorAll('[data-ex-idx]');
+    day.exercises = Array.from(rows).map(row => ({
+      name: row.querySelector('[data-key="ex-name"]').value.trim(),
+      sets: parseInt(row.querySelector('[data-key="ex-sets"]').value) || 0,
+      reps: row.querySelector('[data-key="ex-reps"]').value.trim(),
+      rest: row.querySelector('[data-key="ex-rest"]').value.trim(),
+      notes: row.querySelector('[data-key="ex-notes"]').value.trim(),
+    })).filter(e => e.name);
+    delete day.tips;
+  }
+}
+
+function editPlanAddExercise() {
+  readEditDayIntoPlan();
+  const day = editingPlan.days[editingDayIdx];
+  if (!day.exercises) day.exercises = [];
+  day.exercises.push({ name: '', sets: 3, reps: '10', rest: '90 sec', notes: '' });
+  renderEditDay();
+}
+
+function editPlanRemoveExercise(idx) {
+  readEditDayIntoPlan();
+  const day = editingPlan.days[editingDayIdx];
+  day.exercises.splice(idx, 1);
+  renderEditDay();
+}
+
+async function editPlanSave() {
+  readEditDayIntoPlan();
+  // Refresh dropdown label if day name changed
+  const sel = document.getElementById('edit-day-select');
+  sel.innerHTML = editingPlan.days.map((d, i) => `<option value="${i}"${i === editingDayIdx ? ' selected' : ''}>${d.day}: ${d.name}</option>`).join('');
+
+  const { data: saved } = await sb.from('workout_plans')
+    .select('id').eq('user_id', currentUser.id)
+    .order('created_at', { ascending: false }).limit(1).single();
+  if (!saved) {
+    const { error } = await sb.from('workout_plans').insert({ user_id: currentUser.id, plan: editingPlan });
+    if (error) { console.error('[edit plan] insert failed:', error); return showToast('Error saving: ' + (error.message || 'unknown'), 'error'); }
+  } else {
+    const { error } = await sb.from('workout_plans').update({ plan: editingPlan }).eq('id', saved.id);
+    if (error) { console.error('[edit plan] update failed:', error); return showToast('Error saving: ' + (error.message || 'unknown'), 'error'); }
+  }
+  currentPlan = editingPlan;
+  closeModal('editPlanModal');
+  showToast('Plan saved ✓', 'success');
+  renderWeeklyPlan();
 }
 
 async function callCoach(prompt, system, maxTokens) {
