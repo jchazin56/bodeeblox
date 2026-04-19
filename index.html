@@ -1382,6 +1382,161 @@ function parseImportSnapshot(text) {
   return out;
 }
 
+function normalizeDateKey(k) {
+  const m = String(k).match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (!m) return null;
+  return m[1] + '-' + m[2].padStart(2, '0') + '-' + m[3].padStart(2, '0');
+}
+
+async function importBackupJson(backup) {
+  const summary = [];
+
+  // 1. Nutrition: { "YYYY-M-D": { foods: [{ name, meal, cal, prot, carb, fat }] } }
+  let nutCount = 0, nutSkipped = 0;
+  if (backup.nutrition && typeof backup.nutrition === 'object') {
+    const rows = [];
+    for (const [dateKey, dayData] of Object.entries(backup.nutrition)) {
+      const ds = normalizeDateKey(dateKey);
+      if (!ds || !Array.isArray(dayData?.foods)) continue;
+      for (const f of dayData.foods) {
+        if (!f?.name) continue;
+        rows.push({
+          user_id: currentUser.id, logged_date: ds,
+          food_name: f.name, meal_type: f.meal || null,
+          calories: Number(f.cal) || 0, protein_g: Number(f.prot) || 0,
+          carbs_g: Number(f.carb) || 0, fat_g: Number(f.fat) || 0,
+        });
+      }
+    }
+    if (rows.length) {
+      const dates = [...new Set(rows.map(r => r.logged_date))];
+      const { data: existing } = await sb.from('nutrition_logs').select('logged_date').eq('user_id', currentUser.id).in('logged_date', dates);
+      const occupied = new Set((existing || []).map(r => r.logged_date));
+      const toInsert = rows.filter(r => !occupied.has(r.logged_date));
+      nutSkipped = rows.length - toInsert.length;
+      console.log('[import json] nutrition:', toInsert.length, 'of', rows.length, '(skipped already-logged:', nutSkipped + ')');
+      if (toInsert.length) {
+        const { error } = await sb.from('nutrition_logs').insert(toInsert);
+        if (error) console.error('[import json] nutrition insert failed:', error);
+        else nutCount = toInsert.length;
+      }
+    }
+  }
+  if (nutCount) summary.push(nutCount + ' meals' + (nutSkipped ? ' (' + nutSkipped + ' skipped — date already logged)' : ''));
+
+  // 2. Weights: { "YYYY-M-D": 173 }
+  let weightCount = 0;
+  if (backup.weights && typeof backup.weights === 'object') {
+    const rows = [];
+    for (const [dateKey, val] of Object.entries(backup.weights)) {
+      const ds = normalizeDateKey(dateKey);
+      const w = Number(val);
+      if (!ds || !w) continue;
+      rows.push({ user_id: currentUser.id, logged_date: ds, weight_lbs: w });
+    }
+    if (rows.length) {
+      console.log('[import json] weights rows:', rows.length);
+      const { error } = await sb.from('body_stats').upsert(rows, { onConflict: 'user_id,logged_date' });
+      if (error) console.error('[import json] weights upsert failed:', error);
+      else weightCount = rows.length;
+    }
+  }
+  if (weightCount) summary.push(weightCount + ' weight ' + (weightCount === 1 ? 'entry' : 'entries'));
+
+  // 3. Favorites: [{ name, meal, cal, prot, carb, fat }]
+  let favCount = 0, favSkipped = 0;
+  if (Array.isArray(backup.favMeals) && backup.favMeals.length) {
+    const { data: existingFavs } = await sb.from('food_favorites').select('food_name').eq('user_id', currentUser.id);
+    const existingNames = new Set((existingFavs || []).map(f => (f.food_name || '').toLowerCase().trim()));
+    const seenInBatch = new Set();
+    const rows = [];
+    for (const f of backup.favMeals) {
+      if (!f?.name) continue;
+      const key = String(f.name).toLowerCase().trim();
+      if (existingNames.has(key) || seenInBatch.has(key)) { favSkipped++; continue; }
+      seenInBatch.add(key);
+      rows.push({
+        user_id: currentUser.id, food_name: f.name, meal_type: f.meal || null,
+        calories: Number(f.cal) || 0, protein_g: Number(f.prot) || 0,
+        carbs_g: Number(f.carb) || 0, fat_g: Number(f.fat) || 0,
+      });
+    }
+    console.log('[import json] favorites:', rows.length, 'of', backup.favMeals.length);
+    if (rows.length) {
+      const { error } = await sb.from('food_favorites').insert(rows);
+      if (error) console.error('[import json] favMeals insert failed:', error);
+      else favCount = rows.length;
+    }
+  }
+  if (favCount) summary.push(favCount + ' favorite ' + (favCount === 1 ? 'meal' : 'meals') + (favSkipped ? ' (' + favSkipped + ' already saved)' : ''));
+
+  // 4. Coach messages: [{ role, content }]
+  let cmCount = 0;
+  if (Array.isArray(backup.coachMessages) && backup.coachMessages.length) {
+    const rows = backup.coachMessages
+      .filter(m => m && m.role && m.content)
+      .map(m => ({ user_id: currentUser.id, role: m.role, content: m.content }));
+    console.log('[import json] coach messages:', rows.length, 'of', backup.coachMessages.length);
+    if (rows.length) {
+      const { error } = await sb.from('coach_messages').insert(rows);
+      if (error) console.error('[import json] coachMessages insert failed:', error);
+      else cmCount = rows.length;
+    }
+  }
+  if (cmCount) summary.push(cmCount + ' coach ' + (cmCount === 1 ? 'message' : 'messages'));
+
+  // 5. Workout log — best effort. Supports two shapes:
+  //    { key: { date?, title?, label?, exercises: [{name, sets: [{weight, reps, rpe}]}] } }
+  //    { key: { date?, exercises: { "Name": [{weight, reps, rpe}] } } }
+  let sessCount = 0, setCount = 0;
+  if (backup.workoutLog && typeof backup.workoutLog === 'object') {
+    for (const [key, session] of Object.entries(backup.workoutLog)) {
+      if (!session || typeof session !== 'object') continue;
+      let ds = normalizeDateKey(key) || (session.date ? normalizeDateKey(session.date) : null);
+      if (!ds || !session.exercises) continue;
+      const { data: sess, error: sErr } = await sb.from('workout_sessions').insert({
+        user_id: currentUser.id, date: ds,
+        plan_day: session.title || session.label || key,
+        duration_minutes: Number(session.duration_minutes) || null,
+      }).select().single();
+      if (sErr) { console.error('[import json] workout_sessions insert failed:', sErr); continue; }
+      sessCount++;
+      const setRows = [];
+      if (Array.isArray(session.exercises)) {
+        session.exercises.forEach(ex => {
+          if (!ex?.name || !Array.isArray(ex.sets)) return;
+          ex.sets.forEach((s, i) => {
+            if (!s || (!s.weight && !s.reps)) return;
+            setRows.push({
+              session_id: sess.id, user_id: currentUser.id, exercise_name: ex.name,
+              set_number: i + 1, weight_lbs: Number(s.weight) || 0, reps: Number(s.reps) || 0, rpe: s.rpe || null,
+            });
+          });
+        });
+      } else if (typeof session.exercises === 'object') {
+        for (const [name, sets] of Object.entries(session.exercises)) {
+          if (!Array.isArray(sets)) continue;
+          sets.forEach((s, i) => {
+            if (!s || (!s.weight && !s.reps)) return;
+            setRows.push({
+              session_id: sess.id, user_id: currentUser.id, exercise_name: name,
+              set_number: i + 1, weight_lbs: Number(s.weight) || 0, reps: Number(s.reps) || 0, rpe: s.rpe || null,
+            });
+          });
+        }
+      }
+      if (setRows.length) {
+        const { error: stErr } = await sb.from('workout_sets').insert(setRows);
+        if (stErr) console.error('[import json] workout_sets insert failed:', stErr);
+        else setCount += setRows.length;
+      }
+    }
+  }
+  if (sessCount) summary.push(sessCount + ' workout ' + (sessCount === 1 ? 'session' : 'sessions') + ' (' + setCount + ' sets)');
+
+  return summary;
+}
+
 async function runImport() {
   const text = document.getElementById('import-text').value.trim();
   if (!text) return showToast('Paste your snapshot first', 'error');
@@ -1389,6 +1544,25 @@ async function runImport() {
   const summaryEl = document.getElementById('import-summary');
   btn.disabled = true; btn.textContent = 'Importing...';
   console.log('[import] Raw text length:', text.length);
+
+  // JSON backup detection
+  let backup = null;
+  try { backup = JSON.parse(text); } catch (_) { /* not JSON */ }
+  if (backup && typeof backup === 'object' && ('nutrition' in backup || 'weights' in backup || 'favMeals' in backup || 'coachMessages' in backup || 'workoutLog' in backup)) {
+    console.log('[import] Detected JSON backup format');
+    const summary = await importBackupJson(backup);
+    summaryEl.textContent = summary.length ? 'Imported: ' + summary.join(' · ') : 'Nothing imported (empty, all duplicates, or no recognized data).';
+    summaryEl.style.display = 'block';
+    btn.textContent = 'Done';
+    await loadTodayData();
+    setTimeout(() => {
+      closeModal('importModal');
+      document.getElementById('import-text').value = '';
+      summaryEl.style.display = 'none';
+      btn.disabled = false; btn.textContent = 'Import & Review with Coach';
+    }, 3000);
+    return;
+  }
 
   const parsed = parseImportSnapshot(text);
   console.log('[import] Parsed:', parsed);
