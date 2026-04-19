@@ -277,6 +277,9 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
 .set-row { display: grid; grid-template-columns: 24px 1fr 1fr 52px 28px; gap: 0.4rem; align-items: center; position: relative; }
 .pr-badge { grid-column: 1 / -1; background: linear-gradient(90deg, rgba(255,189,46,0.2), rgba(255,189,46,0.05)); border: 1px solid rgba(255,189,46,0.4); color: #FFBD2E; font-size: 0.7rem; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 8px; text-align: center; animation: prPulse 0.6s ease-out; margin-top: 0.15rem; }
 @keyframes prPulse { 0%{ transform: scale(0.8); opacity: 0; } 60%{ transform: scale(1.05); opacity: 1; } 100%{ transform: scale(1); opacity: 1; } }
+.rest-timer-pill { background: var(--g2); border: 1px solid var(--g3); color: var(--accent); font-size: 0.78rem; font-weight: 600; padding: 0.4rem 0.8rem; border-radius: 100px; text-align: center; margin: 0.35rem 0 0.25rem; cursor: pointer; font-variant-numeric: tabular-nums; display: block; animation: fadeIn 0.2s ease-out; }
+.rest-timer-pill.rest-done { background: rgba(200,242,90,0.15); border-color: var(--accent); color: var(--accent); animation: restDonePulse 1.2s ease-in-out 3; }
+@keyframes restDonePulse { 0%, 100% { transform: scale(1); box-shadow: 0 0 0 rgba(200,242,90,0); } 50% { transform: scale(1.04); box-shadow: 0 0 14px rgba(200,242,90,0.5); } }
 .rpe-input { background: var(--g2); border: 1px solid var(--g3); border-radius: 8px; padding: 0.5rem 0.25rem; font-family: var(--fb); font-size: 0.8rem; color: var(--warn); text-align: center; outline: none; width: 100%; }
 .rpe-input:focus { border-color: var(--warn); }
 .workout-generating { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3rem 1.25rem; gap: 1rem; color: var(--g5); font-size: 0.875rem; text-align: center; }
@@ -2243,6 +2246,55 @@ async function renderWeeklyPlan() {
   workoutContent.innerHTML = html;
 }
 
+// REST TIMER (between sets)
+let activeRestTimer = null;
+
+function parseRestSeconds(restStr) {
+  if (!restStr) return 90;
+  const s = String(restStr).toLowerCase();
+  const range = s.match(/(\d+)\s*-\s*(\d+)\s*min/);
+  if (range) return Math.round((parseInt(range[1]) + parseInt(range[2])) / 2 * 60);
+  const min = s.match(/(\d+(?:\.\d+)?)\s*min/);
+  if (min) return Math.round(parseFloat(min[1]) * 60);
+  const sec = s.match(/(\d+)\s*(?:sec|secs|s\b)/);
+  if (sec) return parseInt(sec[1]);
+  const plain = s.match(/^(\d+)$/);
+  if (plain) return parseInt(plain[1]);
+  return 90;
+}
+
+function clearRestTimer() {
+  if (!activeRestTimer) return;
+  if (activeRestTimer.interval) clearInterval(activeRestTimer.interval);
+  if (activeRestTimer.pillEl?.parentNode) activeRestTimer.pillEl.parentNode.removeChild(activeRestTimer.pillEl);
+  activeRestTimer = null;
+}
+
+function startRestTimer(ei, si, seconds) {
+  clearRestTimer();
+  const row = document.getElementById('srow-' + ei + '-' + si);
+  if (!row || !row.parentNode) return;
+  const pill = document.createElement('div');
+  pill.className = 'rest-timer-pill';
+  pill.onclick = () => clearRestTimer();
+  row.parentNode.insertBefore(pill, row.nextSibling);
+  const fmt = (s) => Math.floor(s / 60) + ':' + String(Math.max(0, s) % 60).padStart(2, '0');
+  pill.textContent = '⏱ Rest ' + fmt(seconds);
+  activeRestTimer = { interval: null, remaining: seconds, pillEl: pill };
+  activeRestTimer.interval = setInterval(() => {
+    if (!activeRestTimer) return;
+    activeRestTimer.remaining--;
+    if (activeRestTimer.remaining <= 0) {
+      clearInterval(activeRestTimer.interval);
+      activeRestTimer.interval = null;
+      pill.classList.add('rest-done');
+      pill.textContent = '✓ Rest complete — next set!';
+      return;
+    }
+    pill.textContent = '⏱ Rest ' + fmt(activeRestTimer.remaining);
+  }, 1000);
+}
+
 // PR TRACKING (localStorage-backed)
 function prStorageKey() { return 'prs_' + (currentUser?.id || 'anon'); }
 
@@ -2418,6 +2470,8 @@ function toggleSessionCheck(ei, si) {
           updatePR(ex.name, w, r);
         }
       }
+      // Rest timer
+      if (ex) startRestTimer(ei, si, parseRestSeconds(ex.rest));
     }
   }
 }
@@ -2451,6 +2505,7 @@ function updateTimer() {
 function stopTimer() {
   clearInterval(sessionTimerInterval);
   sessionTimerInterval = null;
+  clearRestTimer();
 }
 
 async function finishWorkout() {
