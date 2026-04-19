@@ -2695,14 +2695,15 @@ async function loadWorkoutHistory() {
         <div style="color:var(--g4);font-size:1.1rem;" id="sh${i}-arrow">›</div>
       </div>
       <div class="session-card-body" id="sh${i}">
-        ${exercises.map(ex => {
-          const exSets = sets.filter(s => s.exercise_name === ex);
-          const best = exSets.reduce((b, s) => s.weight > (b?.weight || 0) ? s : b, null);
-          return `<div class="session-ex-row">
-            <span>${ex}</span>
-            <span style="color:var(--g5);">${exSets.length} sets${best?.weight ? ' · ' + best.weight + 'lbs x ' + best.reps : ''}</span>
+        ${exercises.length ? exercises.map(ex => {
+          const exSets = sets.filter(s => s.exercise_name === ex).sort((a, b) => (a.set_number || 0) - (b.set_number || 0));
+          return `<div class="session-ex-row" style="flex-direction:column;align-items:flex-start;gap:0.35rem;">
+            <div style="font-weight:600;color:var(--white);">${ex}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:0.35rem;">
+              ${exSets.map(s => `<span style="background:var(--g2);border:1px solid var(--g3);color:var(--g5);font-size:0.72rem;padding:0.2rem 0.55rem;border-radius:8px;font-variant-numeric:tabular-nums;">${s.weight || 0}×${s.reps || 0}${s.rpe ? ' @' + s.rpe : ''}</span>`).join('')}
+            </div>
           </div>`;
-        }).join('')}
+        }).join('') : '<div style="font-size:0.78rem;color:var(--g5);padding:0.3rem 0;">No sets logged for this session.</div>'}
         ${session.ai_feedback ? `<div class="session-feedback">💬 ${session.ai_feedback}</div>` : ''}
       </div>
     </div>`;
