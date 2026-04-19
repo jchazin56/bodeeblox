@@ -1667,18 +1667,19 @@ function buildForecast() {
 
 
 async function openProfileModal() {
-  if (!userProfile) return;
-  await loadTodayData();
+  console.log('[profile] openProfileModal called, userProfile:', !!userProfile);
+  if (!userProfile) { console.warn('[profile] userProfile not loaded yet, opening modal with defaults'); }
+  try { await loadTodayData(); } catch (e) { console.warn('[profile] loadTodayData threw:', e); }
   const goalLabels = { cut: 'Goal: Lose Fat 🔥', bulk: 'Goal: Build Muscle 💪', recomp: 'Goal: Recomposition ⚖️', maintain: 'Goal: Stay Healthy 🏃' };
-  const name = userProfile.name || currentUser.email?.split('@')[0] || 'Athlete';
-  const initials = name.slice(0,2).toUpperCase();
+  const name = userProfile?.name || currentUser?.email?.split('@')[0] || 'Athlete';
+  const initials = name.slice(0, 2).toUpperCase();
   setText('modal-avatar', initials);
   setText('modal-name', name);
-  setText('modal-email', currentUser.email || '');
-  setText('modal-goal-label', goalLabels[userProfile.goal] || 'No goal set');
-  setText('modal-weight', document.getElementById('prof-weight').textContent || '—');
-  setText('modal-bf', document.getElementById('prof-bf').textContent || '—');
-  setText('modal-calories', userProfile.goal_calories ? userProfile.goal_calories.toLocaleString() + ' kcal' : '—');
+  setText('modal-email', currentUser?.email || '');
+  setText('modal-goal-label', goalLabels[userProfile?.goal] || 'No goal set');
+  setText('modal-weight', document.getElementById('prof-weight')?.textContent || '—');
+  setText('modal-bf', document.getElementById('prof-bf')?.textContent || '—');
+  setText('modal-calories', userProfile?.goal_calories ? userProfile.goal_calories.toLocaleString() + ' kcal' : '—');
   openModal('profileModal');
 }
 
