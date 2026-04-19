@@ -274,7 +274,9 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
 .wdc-name { font-family: var(--fd); font-weight: 700; font-size: 1rem; }
 .wdc-meta { font-size: 0.75rem; color: var(--g5); margin-top: 3px; }
 .ex-rpe { width: 44px; }
-.set-row { display: grid; grid-template-columns: 24px 1fr 1fr 52px 28px; gap: 0.4rem; align-items: center; }
+.set-row { display: grid; grid-template-columns: 24px 1fr 1fr 52px 28px; gap: 0.4rem; align-items: center; position: relative; }
+.pr-badge { grid-column: 1 / -1; background: linear-gradient(90deg, rgba(255,189,46,0.2), rgba(255,189,46,0.05)); border: 1px solid rgba(255,189,46,0.4); color: #FFBD2E; font-size: 0.7rem; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 8px; text-align: center; animation: prPulse 0.6s ease-out; margin-top: 0.15rem; }
+@keyframes prPulse { 0%{ transform: scale(0.8); opacity: 0; } 60%{ transform: scale(1.05); opacity: 1; } 100%{ transform: scale(1); opacity: 1; } }
 .rpe-input { background: var(--g2); border: 1px solid var(--g3); border-radius: 8px; padding: 0.5rem 0.25rem; font-family: var(--fb); font-size: 0.8rem; color: var(--warn); text-align: center; outline: none; width: 100%; }
 .rpe-input:focus { border-color: var(--warn); }
 .workout-generating { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3rem 1.25rem; gap: 1rem; color: var(--g5); font-size: 0.875rem; text-align: center; }
@@ -579,7 +581,13 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
       <div style="font-size:0.8rem;font-weight:500;color:var(--accent);cursor:pointer;" onclick="toggleCoach()">Full coaching chat →</div>
     </div>
     <div class="section-label">This Week's Forecast</div>
-    <div class="forecast-strip" id="forecast-strip"></div>
+    <div id="home-status" style="margin:0.5rem 1.25rem 0;">
+      <div style="display:flex;gap:0.5rem;margin-bottom:0.5rem;">
+        <div id="streak-tile" style="flex:1;background:var(--g1);border:1px solid var(--g3);border-radius:14px;padding:0.75rem;"><div style="font-size:0.65rem;color:var(--g5);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.25rem;">Streak</div><div style="font-family:var(--fd);font-weight:700;font-size:1.1rem;color:var(--white);">—</div></div>
+        <div id="readiness-tile" style="flex:1;background:var(--g1);border:1px solid var(--g3);border-radius:14px;padding:0.75rem;"><div style="font-size:0.65rem;color:var(--g5);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.25rem;">Readiness</div><div style="font-family:var(--fd);font-weight:700;font-size:0.9rem;color:var(--white);">—</div></div>
+      </div>
+      <div id="whats-next-card" style="display:none;background:var(--g1);border:1px solid var(--g3);border-radius:14px;padding:0.9rem 1rem;cursor:pointer;"></div>
+    </div>
     <div class="section-label">Today</div>
     <div class="stat-grid">
       <div class="stat-tile">
@@ -994,6 +1002,7 @@ let currentUser = null;
 let userProfile = null;
 let todayNutrition = [];
 let favoriteNameSet = new Set();
+let prCache = {};
 
 async function init() {
   try {
@@ -1018,7 +1027,7 @@ async function loadApp() {
     return;
   }
   await loadTodayData();
-  buildForecast();
+  buildHomeStatus();
 }
 
 async function loadProfile() {
@@ -1704,15 +1713,79 @@ function generateInsight(logs) {
   setText('coach-insight', msg);
 }
 
-function buildForecast() {
-  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  const scores = [72,84,58,96,81,44,67];
-  const today = new Date().getDay();
-  document.getElementById('forecast-strip').innerHTML = days.map((d,i) => {
-    const s = scores[i], isToday = i===today;
-    const c = s>=85?'var(--accent)':s>=65?'var(--g5)':'var(--danger)';
-    return `<div class="day-chip ${isToday?'today':''}"><div class="dc-name">${d}</div><div class="dc-score" style="color:${isToday?'var(--accent)':c};">${s}</div><div class="dc-dot" style="background:${c};"></div></div>`;
-  }).join('');
+async function buildHomeStatus() {
+  if (!currentUser) return;
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 60);
+  const cutoffStr = cutoff.toISOString().split('T')[0];
+  const y = new Date(); y.setDate(y.getDate() - 1);
+  const ystr = y.toISOString().split('T')[0];
+
+  const [{ data: nut }, { data: sess }, { data: yprot }, planRes] = await Promise.all([
+    sb.from('nutrition_logs').select('logged_date').eq('user_id', currentUser.id).gte('logged_date', cutoffStr),
+    sb.from('workout_sessions').select('date,plan_day').eq('user_id', currentUser.id).gte('date', cutoffStr).order('date', { ascending: false }),
+    sb.from('nutrition_logs').select('protein_g').eq('user_id', currentUser.id).eq('logged_date', ystr),
+    currentPlan ? Promise.resolve({ data: [{ plan: currentPlan }] }) : sb.from('workout_plans').select('plan').eq('user_id', currentUser.id).order('created_at', { ascending: false }).limit(1)
+  ]);
+
+  // Streak: walk back from today; allow today to be skipped
+  const active = new Set();
+  (nut || []).forEach(r => active.add(r.logged_date));
+  (sess || []).forEach(r => active.add(r.date));
+  let streak = 0;
+  const t = new Date();
+  for (let i = 0; i < 60; i++) {
+    const d = new Date(t); d.setDate(t.getDate() - i);
+    const ds = d.toISOString().split('T')[0];
+    if (active.has(ds)) streak++;
+    else if (i > 0) break;
+  }
+  const streakTile = document.getElementById('streak-tile');
+  streakTile.innerHTML = `<div style="font-size:0.65rem;color:var(--g5);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.25rem;">Streak</div><div style="font-family:var(--fd);font-weight:700;font-size:1.1rem;color:var(--white);">🔥 ${streak} ${streak === 1 ? 'day' : 'days'}</div>`;
+
+  // Readiness: days since last workout + yesterday's protein ratio
+  let daysSince = 99;
+  if (sess && sess.length) {
+    const last = new Date(sess[0].date + 'T00:00');
+    daysSince = Math.max(0, Math.floor((Date.now() - last.getTime()) / 86400000));
+  }
+  const totalP = (yprot || []).reduce((a, r) => a + (r.protein_g || 0), 0);
+  const goalP = userProfile?.goal_protein || 160;
+  const ratio = totalP / goalP;
+  let color, label;
+  if (daysSince <= 2 && ratio >= 0.7) { color = '#C8F25A'; label = 'Ready'; }
+  else if (daysSince >= 5 || ratio < 0.4) { color = '#FF5F57'; label = daysSince >= 5 ? 'Long gap' : 'Low protein'; }
+  else { color = '#FFBD2E'; label = 'Moderate'; }
+  const readinessTile = document.getElementById('readiness-tile');
+  readinessTile.innerHTML = `<div style="font-size:0.65rem;color:var(--g5);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.25rem;">Readiness</div><div style="display:flex;align-items:center;gap:0.4rem;"><span style="width:10px;height:10px;border-radius:50%;background:${color};"></span><div style="font-family:var(--fd);font-weight:700;font-size:0.9rem;color:var(--white);">${label}</div></div>`;
+
+  // What's Next: next training day after the most recent completed one
+  const plan = planRes?.data?.[0]?.plan;
+  const nextCard = document.getElementById('whats-next-card');
+  if (plan?.days?.length) {
+    const trainingDaysWithIdx = plan.days.map((d, i) => ({ d, i })).filter(x => x.d.type === 'training');
+    if (trainingDaysWithIdx.length) {
+      const lastPlanDay = sess?.[0]?.plan_day;
+      let nextEntry = trainingDaysWithIdx[0];
+      if (lastPlanDay) {
+        const idx = trainingDaysWithIdx.findIndex(x => x.d.name === lastPlanDay);
+        if (idx >= 0) nextEntry = trainingDaysWithIdx[(idx + 1) % trainingDaysWithIdx.length];
+      }
+      nextCard.style.display = 'block';
+      nextCard.onclick = () => { switchScreen('workout', document.querySelector('.nav-item:nth-child(2)')); loadWorkoutScreen(); setTimeout(() => startWorkoutSession(nextEntry.i), 250); };
+      nextCard.innerHTML = `<div style="font-size:0.65rem;color:var(--g5);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.25rem;">What's Next</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-family:var(--fd);font-weight:700;font-size:1rem;color:var(--white);">${nextEntry.d.name}</div>
+            <div style="font-size:0.72rem;color:var(--g5);margin-top:2px;">${nextEntry.d.day} · ${nextEntry.d.focus || ''}</div>
+          </div>
+          <div style="color:var(--accent);font-size:0.8rem;">Start →</div>
+        </div>`;
+    } else {
+      nextCard.style.display = 'none';
+    }
+  } else {
+    nextCard.style.display = 'none';
+  }
 }
 
 
@@ -2104,13 +2177,57 @@ async function renderWeeklyPlan() {
   workoutContent.innerHTML = html;
 }
 
+// PR TRACKING (localStorage-backed)
+function prStorageKey() { return 'prs_' + (currentUser?.id || 'anon'); }
+
+function loadPRCache() {
+  try { prCache = JSON.parse(localStorage.getItem(prStorageKey()) || '{}'); } catch { prCache = {}; }
+}
+
+function savePRCache() {
+  if (!currentUser) return;
+  localStorage.setItem(prStorageKey(), JSON.stringify(prCache));
+}
+
+function isPR(exName, weight, reps) {
+  weight = Number(weight) || 0;
+  reps = Number(reps) || 0;
+  if (!weight && !reps) return false;
+  const best = prCache[exName];
+  if (!best) return weight > 0;
+  if (weight > (best.weight || 0)) return true;
+  if (weight === (best.weight || 0) && reps > (best.reps || 0)) return true;
+  return false;
+}
+
+function updatePR(exName, weight, reps) {
+  weight = Number(weight) || 0;
+  reps = Number(reps) || 0;
+  const best = prCache[exName];
+  if (!best || weight > (best.weight || 0) || (weight === (best.weight || 0) && reps > (best.reps || 0))) {
+    prCache[exName] = { weight, reps };
+  }
+}
+
+async function preloadPRCacheFromDB() {
+  if (!currentUser) return;
+  if (Object.keys(prCache).length) return; // cache already populated
+  const { data } = await sb.from('workout_sets').select('exercise_name,weight_lbs,reps').eq('user_id', currentUser.id);
+  if (!data) return;
+  data.forEach(s => updatePR(s.exercise_name, s.weight_lbs, s.reps));
+  savePRCache();
+}
+
 function startWorkoutSession(dayIndex) {
   const day = currentPlan.days[dayIndex];
   if (!day || day.type === 'rest') return;
 
+  loadPRCache();
+  preloadPRCacheFromDB();
+
   const mode = localStorage.getItem('dayMode_' + dayIndex) || 'gym';
   const exercises = (mode === 'home' && day.home_exercises?.length) ? day.home_exercises : day.exercises;
-  activeSession = { dayIndex, day, sets: {}, mode };
+  activeSession = { dayIndex, day, sets: {}, mode, prHit: 0 };
   
   document.getElementById('session-title').textContent = day.name + (mode === 'home' ? ' 🏠' : ' 🏢');
   document.getElementById('session-subtitle').textContent = day.day + ' · ' + day.focus;
@@ -2215,6 +2332,27 @@ function toggleSessionCheck(ei, si) {
       if (nextRpe && !nextRpe.value && rpe) nextRpe.value = rpe;
       nextSi++;
     }
+
+    // PR check: if this set beats the running cache, flag + update
+    if (activeSession) {
+      const exercises = (activeSession.mode === 'home' && activeSession.day.home_exercises?.length) ? activeSession.day.home_exercises : activeSession.day.exercises;
+      const ex = exercises?.[ei];
+      if (ex && (weight || reps)) {
+        const w = parseFloat(weight) || 0;
+        const r = parseInt(reps) || 0;
+        if (isPR(ex.name, w, r)) {
+          const row = document.getElementById('srow-' + ei + '-' + si);
+          if (row && !row.querySelector('.pr-badge')) {
+            const badge = document.createElement('div');
+            badge.className = 'pr-badge';
+            badge.textContent = '🏆 New PR!';
+            row.appendChild(badge);
+            activeSession.prHit = (activeSession.prHit || 0) + 1;
+          }
+          updatePR(ex.name, w, r);
+        }
+      }
+    }
   }
 }
 
@@ -2295,6 +2433,11 @@ async function finishWorkout() {
         rpe: s.rpe
       })));
     }
+
+    // Update PR cache with all logged sets (in case the user skipped the checkmark)
+    loggedSets.forEach(s => { if (s.weight || s.reps) updatePR(s.exercise, s.weight, s.reps); });
+    savePRCache();
+    if (activeSession?.prHit > 0) showToast(activeSession.prHit + ' PR' + (activeSession.prHit === 1 ? '' : 's') + ' today 🏆', 'success');
 
     closeModal('sessionModal');
     openModal('feedbackModal');
