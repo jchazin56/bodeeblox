@@ -658,10 +658,6 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
           <div class="sheet-title" style="margin-bottom:2px;" id="session-title">Workout</div>
           <div style="font-size:0.75rem;color:var(--g5);" id="session-subtitle"></div>
         </div>
-        <div style="text-align:right;">
-          <div class="session-timer" id="session-timer">0:00</div>
-          <div style="font-size:0.65rem;color:var(--g5);">elapsed</div>
-        </div>
       </div>
       <div id="session-exercises" style="overflow-y:auto;max-height:55vh;"></div>
       <div style="margin-top:0.75rem;display:flex;gap:0.5rem;">
@@ -2385,9 +2381,8 @@ function startWorkoutSession(dayIndex) {
 
   document.getElementById('session-exercises').innerHTML = html;
   
-  // Start timer
+  // Track start time for duration calc (no visible timer)
   sessionStartTime = Date.now();
-  sessionTimerInterval = setInterval(updateTimer, 1000);
   
   openModal('sessionModal');
 }
