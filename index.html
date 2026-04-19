@@ -3263,7 +3263,11 @@ async function sendCoachMsg() {
   // Show user message
   const userLabel = text + (pendingAttachment ? ` 📎 ${pendingAttachment.name}` : '');
   appendMsg('user', userLabel);
-  await saveMsg('user', userLabel);
+  if (text.length > 2000) {
+    console.log('[coach] Skipping persistence for long paste (', text.length, 'chars) — sent to Claude but not saved to coach_messages');
+  } else {
+    await saveMsg('user', userLabel);
+  }
 
   const attachment = pendingAttachment;
   clearAttachment();
