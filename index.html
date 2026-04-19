@@ -1555,12 +1555,12 @@ async function importBackupJson(backup) {
       if (!session || typeof session !== 'object') continue;
       let ds = normalizeDateKey(key) || (session.date ? normalizeDateKey(session.date) : null);
       if (!ds || !session.exercises) continue;
-      const { data: sess, error: sErr } = await sb.from('workout_sessions').insert({
+      const { data: sess, error: sErr } = await sb.from('workouts').insert({
         user_id: currentUser.id, date: ds,
         plan_day: session.title || session.label || key,
         duration_minutes: Number(session.duration_minutes) || null,
       }).select().single();
-      if (sErr) { console.error('[import json] workout_sessions insert failed:', sErr); continue; }
+      if (sErr) { console.error('[import json] workouts insert failed:', sErr); continue; }
       sessCount++;
       const setRows = [];
       if (Array.isArray(session.exercises)) {
@@ -1724,12 +1724,12 @@ async function runImport() {
   let sessCount = 0, setCount = 0;
   for (const ps of parsedSessions) {
     if (!ps.sets.length) continue;
-    const { data: sess, error: sErr } = await sb.from('workout_sessions').insert({
+    const { data: sess, error: sErr } = await sb.from('workouts').insert({
       user_id: currentUser.id,
       date: sessionDate,
       plan_day: ps.plan_day,
     }).select().single();
-    if (sErr) { console.error('[import] workout_sessions insert failed:', sErr); continue; }
+    if (sErr) { console.error('[import] workouts insert failed:', sErr); continue; }
     sessCount++;
     const setRows = ps.sets.map(s => ({
       workout_id: sess.id,
@@ -1787,7 +1787,7 @@ async function buildHomeStatus() {
 
   const [{ data: nut }, { data: sess }, { data: yprot }, planRes] = await Promise.all([
     sb.from('nutrition_logs').select('logged_date').eq('user_id', currentUser.id).gte('logged_date', cutoffStr),
-    sb.from('workout_sessions').select('date,plan_day').eq('user_id', currentUser.id).gte('date', cutoffStr).order('date', { ascending: false }),
+    sb.from('workouts').select('date,plan_day').eq('user_id', currentUser.id).gte('date', cutoffStr).order('date', { ascending: false }),
     sb.from('nutrition_logs').select('protein_g').eq('user_id', currentUser.id).eq('logged_date', ystr),
     currentPlan ? Promise.resolve({ data: [{ plan: currentPlan }] }) : sb.from('workout_plans').select('plan').eq('user_id', currentUser.id).order('created_at', { ascending: false }).limit(1)
   ]);
@@ -2192,7 +2192,7 @@ async function renderWeeklyPlan() {
   if (!currentPlan || !currentPlan.days) return;
 
   // Load recent sessions to show completion status
-  const { data: recentSessions } = await sb.from('workout_sessions')
+  const { data: recentSessions } = await sb.from('workouts')
     .select('plan_day, completed_at')
     .eq('user_id', currentUser.id)
     .order('completed_at', { ascending: false })
@@ -2533,13 +2533,13 @@ async function finishWorkout() {
     console.log('[finishWorkout] loggedSets:', loggedSets);
 
     // Save session
-    const { data: session, error: sessErr } = await sb.from('workout_sessions').insert({
+    const { data: session, error: sessErr } = await sb.from('workouts').insert({
       user_id: currentUser.id,
       date: todayStr(),
       plan_day: activeSession.day.name,
       duration_minutes: duration
     }).select().single();
-    console.log('[finishWorkout] workout_sessions response → id:', session?.id, '| error:', sessErr);
+    console.log('[finishWorkout] workouts response → id:', session?.id, '| error:', sessErr);
     if (sessErr) {
       console.error('[finishWorkout] session insert failed:', sessErr.message, '| code:', sessErr.code, '| details:', sessErr.details, '| hint:', sessErr.hint);
       showToast('Error saving session: ' + (sessErr.message || 'unknown'), 'error');
@@ -2600,7 +2600,7 @@ async function finishWorkout() {
     const feedback = feedbackData.content?.[0]?.text || 'Great work finishing this session!';
     
     // Save feedback to session
-    if (session) await sb.from('workout_sessions').update({ ai_feedback: feedback }).eq('id', session.id);
+    if (session) await sb.from('workouts').update({ ai_feedback: feedback }).eq('id', session.id);
     
     document.getElementById('feedback-text').innerHTML = formatCoachText(feedback);
     activeSession = null;
@@ -2619,7 +2619,7 @@ async function loadWorkoutHistory() {
   if (!container) return;
 
   const [{ data: sessions }, { data: weights }] = await Promise.all([
-    sb.from('workout_sessions').select('*').eq('user_id', currentUser.id)
+    sb.from('workouts').select('*').eq('user_id', currentUser.id)
       .order('completed_at', { ascending: false }).limit(20),
     sb.from('body_stats').select('logged_date,weight_lbs,body_fat_pct').eq('user_id', currentUser.id)
       .order('logged_date', { ascending: false }).limit(10)
@@ -2702,7 +2702,7 @@ function toggleSessionHistory(id) {
 }
 
 async function loadHomeWorkoutData() {
-  const { data: sessions } = await sb.from('workout_sessions')
+  const { data: sessions } = await sb.from('workouts')
     .select('*')
     .eq('user_id', currentUser.id)
     .order('completed_at', { ascending: false })
@@ -3126,7 +3126,7 @@ async function loadCalendar() {
       .eq('user_id', currentUser.id).gte('logged_date', start).lte('logged_date', end),
     sb.from('body_stats').select('logged_date,weight_lbs,body_fat_pct')
       .eq('user_id', currentUser.id).gte('logged_date', start).lte('logged_date', end),
-    sb.from('workout_sessions').select('id,date,plan_day,duration_minutes')
+    sb.from('workouts').select('id,date,plan_day,duration_minutes')
       .eq('user_id', currentUser.id).gte('date', start).lte('date', end)
   ]);
 
