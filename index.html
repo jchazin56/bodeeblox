@@ -1569,8 +1569,8 @@ async function importBackupJson(backup) {
           ex.sets.forEach((s, i) => {
             if (!s || (!s.weight && !s.reps)) return;
             setRows.push({
-              user_id: currentUser.id, exercise_name: ex.name,
-              set_number: i + 1, weight_lbs: Number(s.weight) || 0, reps: Number(s.reps) || 0, rpe: s.rpe || null,
+              workout_id: sess.id, user_id: currentUser.id, exercise_name: ex.name,
+              set_number: i + 1, weight: Number(s.weight) || 0, reps: Number(s.reps) || 0, rpe: s.rpe || null,
             });
           });
         });
@@ -1580,8 +1580,8 @@ async function importBackupJson(backup) {
           sets.forEach((s, i) => {
             if (!s || (!s.weight && !s.reps)) return;
             setRows.push({
-              user_id: currentUser.id, exercise_name: name,
-              set_number: i + 1, weight_lbs: Number(s.weight) || 0, reps: Number(s.reps) || 0, rpe: s.rpe || null,
+              workout_id: sess.id, user_id: currentUser.id, exercise_name: name,
+              set_number: i + 1, weight: Number(s.weight) || 0, reps: Number(s.reps) || 0, rpe: s.rpe || null,
             });
           });
         }
@@ -1732,10 +1732,11 @@ async function runImport() {
     if (sErr) { console.error('[import] workout_sessions insert failed:', sErr); continue; }
     sessCount++;
     const setRows = ps.sets.map(s => ({
+      workout_id: sess.id,
       user_id: currentUser.id,
       exercise_name: s.exercise_name,
       set_number: s.set_number,
-      weight_lbs: s.weight_lbs,
+      weight: s.weight_lbs,
       reps: s.reps,
     }));
     const { error: stErr } = await sb.from('workout_sets').insert(setRows);
@@ -2325,9 +2326,9 @@ function updatePR(exName, weight, reps) {
 async function preloadPRCacheFromDB() {
   if (!currentUser) return;
   if (Object.keys(prCache).length) return; // cache already populated
-  const { data } = await sb.from('workout_sets').select('exercise_name,weight_lbs,reps').eq('user_id', currentUser.id);
+  const { data } = await sb.from('workout_sets').select('exercise_name,weight,reps').eq('user_id', currentUser.id);
   if (!data) return;
-  data.forEach(s => updatePR(s.exercise_name, s.weight_lbs, s.reps));
+  data.forEach(s => updatePR(s.exercise_name, s.weight, s.reps));
   savePRCache();
 }
 
@@ -2548,10 +2549,11 @@ async function finishWorkout() {
     // Save sets
     if (session && loggedSets.length) {
       const setRows = loggedSets.map(s => ({
+        workout_id: session.id,
         user_id: currentUser.id,
         exercise_name: s.exercise,
         set_number: s.set,
-        weight_lbs: s.weight,
+        weight: s.weight,
         reps: s.reps,
         rpe: s.rpe
       }));
@@ -2648,10 +2650,10 @@ async function loadWorkoutHistory() {
   const sessionIds = sessions.map(s => s.id);
   const { data: allSets } = await sb.from('workout_sets')
     .select('*')
-    .in('session_id', sessionIds);
+    .in('workout_id', sessionIds);
 
   const setsBySession = (allSets || []).reduce((a, s) => {
-    (a[s.session_id] = a[s.session_id] || []).push(s);
+    (a[s.workout_id] = a[s.workout_id] || []).push(s);
     return a;
   }, {});
 
@@ -2676,10 +2678,10 @@ async function loadWorkoutHistory() {
       <div class="session-card-body" id="sh${i}">
         ${exercises.map(ex => {
           const exSets = sets.filter(s => s.exercise_name === ex);
-          const best = exSets.reduce((b, s) => s.weight_lbs > (b?.weight_lbs || 0) ? s : b, null);
+          const best = exSets.reduce((b, s) => s.weight > (b?.weight || 0) ? s : b, null);
           return `<div class="session-ex-row">
             <span>${ex}</span>
-            <span style="color:var(--g5);">${exSets.length} sets${best?.weight_lbs ? ' · ${best.weight_lbs}lbs x ${best.reps}' : ''}</span>
+            <span style="color:var(--g5);">${exSets.length} sets${best?.weight ? ' · ' + best.weight + 'lbs x ' + best.reps : ''}</span>
           </div>`;
         }).join('')}
         ${session.ai_feedback ? `<div class="session-feedback">💬 ${session.ai_feedback}</div>` : ''}
@@ -3199,15 +3201,15 @@ async function openDayDetail(dateStr) {
 
   if (session) {
     const { data: sets } = await sb.from('workout_sets')
-      .select('exercise_name,set_number,weight_lbs,reps,rpe')
-      .eq('session_id', session.id).order('set_number');
+      .select('exercise_name,set_number,weight,reps,rpe')
+      .eq('workout_id', session.id).order('set_number');
     const byEx = {};
     (sets || []).forEach(s => { (byEx[s.exercise_name] = byEx[s.exercise_name] || []).push(s); });
     html += `<div style="background:var(--g2);border:1px solid var(--g3);border-radius:12px;padding:0.75rem;">
       <div style="font-size:0.7rem;color:var(--g5);margin-bottom:0.25rem;">Workout · ${session.plan_day || '—'}${session.duration_minutes ? ' · ' + session.duration_minutes + 'm' : ''}</div>
       ${Object.entries(byEx).map(([name, list]) => `<div style="padding:0.4rem 0;border-top:1px solid var(--g3);">
         <div style="font-size:0.78rem;color:var(--white);margin-bottom:0.2rem;">${name}</div>
-        <div style="font-size:0.68rem;color:var(--g5);">${list.map(s => `${s.weight_lbs || 0}×${s.reps || 0}${s.rpe ? ' @' + s.rpe : ''}`).join(' · ')}</div>
+        <div style="font-size:0.68rem;color:var(--g5);">${list.map(s => `${s.weight || 0}×${s.reps || 0}${s.rpe ? ' @' + s.rpe : ''}`).join(' · ')}</div>
       </div>`).join('') || '<div style="font-size:0.72rem;color:var(--g5);padding-top:0.4rem;">No sets logged</div>'}
     </div>`;
   }
