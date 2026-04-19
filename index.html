@@ -1569,7 +1569,7 @@ async function importBackupJson(backup) {
           ex.sets.forEach((s, i) => {
             if (!s || (!s.weight && !s.reps)) return;
             setRows.push({
-              session_id: sess.id, user_id: currentUser.id, exercise_name: ex.name,
+              user_id: currentUser.id, exercise_name: ex.name,
               set_number: i + 1, weight_lbs: Number(s.weight) || 0, reps: Number(s.reps) || 0, rpe: s.rpe || null,
             });
           });
@@ -1580,7 +1580,7 @@ async function importBackupJson(backup) {
           sets.forEach((s, i) => {
             if (!s || (!s.weight && !s.reps)) return;
             setRows.push({
-              session_id: sess.id, user_id: currentUser.id, exercise_name: name,
+              user_id: currentUser.id, exercise_name: name,
               set_number: i + 1, weight_lbs: Number(s.weight) || 0, reps: Number(s.reps) || 0, rpe: s.rpe || null,
             });
           });
@@ -1732,7 +1732,6 @@ async function runImport() {
     if (sErr) { console.error('[import] workout_sessions insert failed:', sErr); continue; }
     sessCount++;
     const setRows = ps.sets.map(s => ({
-      session_id: sess.id,
       user_id: currentUser.id,
       exercise_name: s.exercise_name,
       set_number: s.set_number,
@@ -2549,7 +2548,6 @@ async function finishWorkout() {
     // Save sets
     if (session && loggedSets.length) {
       const setRows = loggedSets.map(s => ({
-        session_id: session.id,
         user_id: currentUser.id,
         exercise_name: s.exercise,
         set_number: s.set,
