@@ -1394,7 +1394,7 @@ function parseImportSnapshot(text) {
 
     out.nutrition.push({
       logged_date: dateStr,
-      food_name: 'Imported daily total',
+      food_name: 'Daily Total (imported)',
       meal_type: null,
       calories: calM ? parseInt(calM[1]) : 0,
       protein_g: pM ? parseFloat(pM[1]) : 0,
@@ -1403,6 +1403,45 @@ function parseImportSnapshot(text) {
     });
   }
   return out;
+}
+
+function parseImportWorkouts(text) {
+  // "Generated" date (fallback to today)
+  let sessionDate = todayStr();
+  const gm = text.match(/generated[^\d\n]{0,30}(\d{4})-(\d{1,2})-(\d{1,2})/i);
+  if (gm) sessionDate = gm[1] + '-' + String(gm[2]).padStart(2, '0') + '-' + String(gm[3]).padStart(2, '0');
+
+  const sessions = [];
+  let current = null;
+  const lines = text.split(/\r?\n/);
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    const dayM = line.match(/^DAY\s+\d+\s*[-–—]\s*(.+?)\s*\((\d+)\s*%/i);
+    if (dayM) {
+      if (current && current.sets.length) sessions.push(current);
+      current = { plan_day: dayM[1].trim(), completion_pct: parseInt(dayM[2]), sets: [] };
+      continue;
+    }
+    if (!current) continue;
+    // Exercise line: "Name [optional spec]: W1lbsxR1, W2lbsxR2, ..."
+    const exM = line.match(/^(.+?)\s*(?:\[[^\]]*\])?\s*:\s*(.+)$/);
+    if (!exM) continue;
+    const exName = exM[1].trim();
+    const setsRaw = exM[2];
+    const setMatches = [...setsRaw.matchAll(/(\d+(?:\.\d+)?)\s*lbs?\s*[x×]\s*(\d+)/gi)];
+    if (!setMatches.length) continue;
+    setMatches.forEach((m, i) => {
+      current.sets.push({
+        exercise_name: exName,
+        set_number: i + 1,
+        weight_lbs: parseFloat(m[1]),
+        reps: parseInt(m[2]),
+      });
+    });
+  }
+  if (current && current.sets.length) sessions.push(current);
+  return { sessionDate, sessions };
 }
 
 function normalizeDateKey(k) {
@@ -1678,7 +1717,34 @@ async function runImport() {
       else nutCount = toInsert.length;
     }
   }
-  if (nutCount) imported.push(nutCount + ' nutrition ' + (nutCount === 1 ? 'entry' : 'entries'));
+  if (nutCount) imported.push(nutCount + ' nutrition ' + (nutCount === 1 ? 'day' : 'days'));
+
+  // Workout sessions + sets
+  const { sessionDate, sessions: parsedSessions } = parseImportWorkouts(text);
+  console.log('[import] Parsed workouts:', parsedSessions.length, 'sessions, date:', sessionDate);
+  let sessCount = 0, setCount = 0;
+  for (const ps of parsedSessions) {
+    if (!ps.sets.length) continue;
+    const { data: sess, error: sErr } = await sb.from('workout_sessions').insert({
+      user_id: currentUser.id,
+      date: sessionDate,
+      plan_day: ps.plan_day,
+    }).select().single();
+    if (sErr) { console.error('[import] workout_sessions insert failed:', sErr); continue; }
+    sessCount++;
+    const setRows = ps.sets.map(s => ({
+      session_id: sess.id,
+      user_id: currentUser.id,
+      exercise_name: s.exercise_name,
+      set_number: s.set_number,
+      weight_lbs: s.weight_lbs,
+      reps: s.reps,
+    }));
+    const { error: stErr } = await sb.from('workout_sets').insert(setRows);
+    if (stErr) console.error('[import] workout_sets insert failed:', stErr);
+    else setCount += setRows.length;
+  }
+  if (sessCount) imported.push(sessCount + ' workout ' + (sessCount === 1 ? 'session' : 'sessions') + ', ' + setCount + ' sets');
 
   summaryEl.textContent = imported.length ? 'Imported: ' + imported.join(', ') : 'No structured data extracted — coach will still review the full snapshot.';
   summaryEl.style.display = 'block';
