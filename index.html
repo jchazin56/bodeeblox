@@ -2529,17 +2529,26 @@ async function finishWorkout() {
   });
 
   try {
+    console.log('[finishWorkout] Saving session | plan_day:', activeSession.day.name, '| date:', todayStr(), '| duration:', duration + 'm', '| logged sets:', loggedSets.length);
+    console.log('[finishWorkout] loggedSets:', loggedSets);
+
     // Save session
-    const { data: session } = await sb.from('workout_sessions').insert({
+    const { data: session, error: sessErr } = await sb.from('workout_sessions').insert({
       user_id: currentUser.id,
       date: todayStr(),
       plan_day: activeSession.day.name,
       duration_minutes: duration
     }).select().single();
+    console.log('[finishWorkout] workout_sessions response → id:', session?.id, '| error:', sessErr);
+    if (sessErr) {
+      console.error('[finishWorkout] session insert failed:', sessErr.message, '| code:', sessErr.code, '| details:', sessErr.details, '| hint:', sessErr.hint);
+      showToast('Error saving session: ' + (sessErr.message || 'unknown'), 'error');
+      throw sessErr;
+    }
 
     // Save sets
     if (session && loggedSets.length) {
-      await sb.from('workout_sets').insert(loggedSets.map(s => ({
+      const setRows = loggedSets.map(s => ({
         session_id: session.id,
         user_id: currentUser.id,
         exercise_name: s.exercise,
@@ -2547,7 +2556,15 @@ async function finishWorkout() {
         weight_lbs: s.weight,
         reps: s.reps,
         rpe: s.rpe
-      })));
+      }));
+      const { error: setsErr } = await sb.from('workout_sets').insert(setRows);
+      console.log('[finishWorkout] workout_sets inserted:', setRows.length, '| error:', setsErr);
+      if (setsErr) {
+        console.error('[finishWorkout] sets insert failed:', setsErr.message, '| code:', setsErr.code, '| details:', setsErr.details, '| hint:', setsErr.hint);
+        showToast('Session saved, but sets failed: ' + (setsErr.message || 'unknown'), 'error');
+      }
+    } else if (!loggedSets.length) {
+      console.warn('[finishWorkout] No sets logged — only session row was saved. Ensure weight or reps are entered on at least one set.');
     }
 
     // Update PR cache with all logged sets (in case the user skipped the checkmark)
