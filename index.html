@@ -2567,12 +2567,15 @@ async function finishWorkout() {
     }
 
     // Update PR cache with all logged sets (in case the user skipped the checkmark)
+    console.log('[finishWorkout] Updating PR cache for', loggedSets.length, 'sets');
     loggedSets.forEach(s => { if (s.weight || s.reps) updatePR(s.exercise, s.weight, s.reps); });
     savePRCache();
     if (activeSession?.prHit > 0) showToast(activeSession.prHit + ' PR' + (activeSession.prHit === 1 ? '' : 's') + ' today 🏆', 'success');
 
+    console.log('[finishWorkout] Closing session modal and opening feedback modal');
     closeModal('sessionModal');
     openModal('feedbackModal');
+    btn.disabled = false; btn.textContent = 'Finish Workout ✓';
 
     // Show stats
     const totalSets = loggedSets.filter(s => s.done || s.weight).length;
@@ -2583,26 +2586,43 @@ async function finishWorkout() {
       <div style="background:var(--g2);border-radius:12px;padding:0.75rem;text-align:center;"><div style="font-family:var(--fd);font-weight:700;font-size:1.1rem;color:var(--warn);">${avgRpe ? avgRpe.toFixed(1) : '—'}</div><div style="font-size:0.65rem;color:var(--g5);margin-top:2px;">AVG RPE</div></div>
     `;
 
+    document.getElementById('feedback-text').innerHTML = '<div style="color:var(--g5);font-size:0.85rem;">Coach is reviewing...</div>';
+
     // Get AI feedback
     const setsText = loggedSets.map(s => `${s.exercise} set ${s.set}: ${s.weight ? s.weight + 'lbs' : ''} x ${s.reps || '?'} reps${s.rpe ? ' @ RPE ' + s.rpe : ''}`).join('\n');
-    const feedbackRes = await fetch('/.netlify/functions/coach', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 300,
-        system: `You are a fitness coach giving brief post-workout feedback. The athlete's goal is ${userProfile?.goal || 'general fitness'}. Be encouraging, specific, and concise. 2-3 sentences max.`,
-        messages: [{ role: 'user', content: `Workout: ${activeSession.day.name} (${duration} min)\nSets logged:\n${setsText}\n\nGive brief feedback on this session.` }]
-      })
-    });
-    const feedbackData = await feedbackRes.json();
-    const feedback = feedbackData.content?.[0]?.text || 'Great work finishing this session!';
-    
+    console.log('[finishWorkout] Fetching AI feedback | setsText length:', setsText.length);
+    const fetchStart = Date.now();
+    let feedback = 'Great work finishing this session!';
+    try {
+      const feedbackRes = await fetch('/.netlify/functions/coach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 300,
+          system: `You are a fitness coach giving brief post-workout feedback. The athlete's goal is ${userProfile?.goal || 'general fitness'}. Be encouraging, specific, and concise. 2-3 sentences max.`,
+          messages: [{ role: 'user', content: `Workout: ${activeSession.day.name} (${duration} min)\nSets logged:\n${setsText}\n\nGive brief feedback on this session.` }]
+        })
+      });
+      console.log('[finishWorkout] AI feedback HTTP status:', feedbackRes.status, '| elapsed:', Date.now() - fetchStart + 'ms');
+      const feedbackData = await feedbackRes.json();
+      console.log('[finishWorkout] AI feedback parsed | has content:', !!feedbackData?.content?.[0]?.text);
+      feedback = feedbackData.content?.[0]?.text || feedback;
+    } catch (fetchErr) {
+      console.error('[finishWorkout] AI feedback fetch failed:', fetchErr);
+    }
+
     // Save feedback to session
-    if (session) await sb.from('workout_sessions').update({ ai_feedback: feedback }).eq('id', session.id);
-    
+    if (session) {
+      console.log('[finishWorkout] Saving ai_feedback to workout_sessions id:', session.id);
+      const { error: fbErr } = await sb.from('workout_sessions').update({ ai_feedback: feedback }).eq('id', session.id);
+      console.log('[finishWorkout] ai_feedback update | error:', fbErr);
+      if (fbErr) console.error('[finishWorkout] ai_feedback update failed:', fbErr.message, '| code:', fbErr.code, '| details:', fbErr.details, '| hint:', fbErr.hint);
+    }
+
     document.getElementById('feedback-text').innerHTML = formatCoachText(feedback);
     activeSession = null;
+    console.log('[finishWorkout] Done ✓');
 
   } catch(e) {
     console.error('Finish workout error:', e);
