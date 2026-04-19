@@ -163,6 +163,18 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
 .settings-item { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; border-bottom: 1px solid var(--g3); cursor: pointer; }
 .settings-item:last-child { border-bottom: none; }
 .settings-item:active { background: var(--g2); }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-dow { text-align: center; font-size: 0.65rem; color: var(--g5); padding: 0.25rem 0; letter-spacing: 0.05em; }
+.cal-day { aspect-ratio: 1; background: var(--g1); border: 1px solid var(--g3); border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 0.3rem 0.2rem; cursor: pointer; }
+.cal-day.empty { background: transparent; border: none; cursor: default; }
+.cal-day.today { border-color: var(--accent); }
+.cal-day:not(.empty):active { background: var(--g2); }
+.cal-num { font-size: 0.75rem; color: var(--white); font-family: var(--fd); font-weight: 600; }
+.cal-dots { display: flex; gap: 3px; min-height: 6px; }
+.cal-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+.cal-dot.workout { background: #C8F25A; }
+.cal-dot.nutrition { background: #FFBD2E; }
+.cal-dot.weight { background: #5AC8F2; }
 .si-left { display: flex; align-items: center; gap: 0.75rem; }
 .si-icon { font-size: 18px; width: 20px; text-align: center; }
 .si-text { font-size: 0.875rem; }
@@ -789,13 +801,36 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
     <div style="height:1rem;"></div>
   </div>
 
+  <!-- HISTORY -->
+  <div class="screen" id="screen-history">
+    <div class="screen-header" style="padding-top:1.25rem;">
+      <div class="screen-title">History</div>
+    </div>
+    <div style="padding:0 1.25rem 2rem;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+        <button onclick="calendarPrevMonth()" style="background:var(--g2);border:1px solid var(--g3);color:var(--white);border-radius:8px;padding:0.4rem 0.75rem;font-size:0.9rem;cursor:pointer;">‹</button>
+        <div id="cal-month-label" style="font-family:var(--fd);font-weight:600;font-size:0.95rem;">—</div>
+        <button onclick="calendarNextMonth()" style="background:var(--g2);border:1px solid var(--g3);color:var(--white);border-radius:8px;padding:0.4rem 0.75rem;font-size:0.9rem;cursor:pointer;">›</button>
+      </div>
+      <div class="cal-grid" style="margin-bottom:0.25rem;">
+        <div class="cal-dow">S</div><div class="cal-dow">M</div><div class="cal-dow">T</div><div class="cal-dow">W</div><div class="cal-dow">T</div><div class="cal-dow">F</div><div class="cal-dow">S</div>
+      </div>
+      <div id="cal-grid" class="cal-grid"></div>
+      <div style="display:flex;gap:1rem;justify-content:center;margin-top:1rem;font-size:0.7rem;color:var(--g5);">
+        <div style="display:flex;align-items:center;gap:4px;"><span class="cal-dot workout"></span>Workout</div>
+        <div style="display:flex;align-items:center;gap:4px;"><span class="cal-dot nutrition"></span>Nutrition</div>
+        <div style="display:flex;align-items:center;gap:4px;"><span class="cal-dot weight"></span>Weight</div>
+      </div>
+    </div>
+  </div>
+
   <!-- BOTTOM NAV -->
   <nav class="bottom-nav">
     <div class="nav-item active" onclick="switchScreen('home',this)"><div class="nav-pip"></div><div class="nav-icon">⚡</div><div class="nav-label">Today</div></div>
     <div class="nav-item" onclick="switchScreen('workout',this)"><div class="nav-pip"></div><div class="nav-icon">🏋️</div><div class="nav-label">Train</div></div>
     <div class="log-btn-wrap" onclick="openModal('logModal')"><div class="log-btn">+</div><div class="log-btn-label">Log</div></div>
     <div class="nav-item" onclick="switchScreen('nutrition',this);loadNutrition();"><div class="nav-pip"></div><div class="nav-icon">🥗</div><div class="nav-label">Nutrition</div></div>
-    <div class="nav-item" onclick="switchScreen('profile',this);loadProgressCharts();"><div class="nav-pip"></div><div class="nav-icon">👤</div><div class="nav-label">Profile</div></div>
+    <div class="nav-item" onclick="switchScreen('history',this);loadCalendar();"><div class="nav-pip"></div><div class="nav-icon">📅</div><div class="nav-label">History</div></div>
   </nav>
 
 
@@ -908,6 +943,15 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
       <textarea class="sheet-input" id="import-text" placeholder="Paste snapshot here..." style="min-height:220px;resize:vertical;font-family:var(--fb);font-size:0.8rem;line-height:1.4;"></textarea>
       <div id="import-summary" style="display:none;margin:0.5rem 0;padding:0.75rem;background:var(--g2);border:1px solid var(--g3);border-radius:10px;font-size:0.75rem;color:var(--g5);line-height:1.5;"></div>
       <button class="sheet-save" id="import-submit-btn" onclick="runImport()">Import & Review with Coach</button>
+    </div>
+  </div>
+
+  <!-- DAY DETAIL MODAL -->
+  <div class="modal-overlay" id="dayDetailModal" onclick="if(event.target===this)closeModal('dayDetailModal')">
+    <div class="modal-sheet">
+      <div class="sheet-handle"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;"><div class="sheet-title" id="day-detail-title" style="margin-bottom:0;">—</div><button onclick="closeModal('dayDetailModal')" style="background:var(--g3);border:none;color:var(--g5);width:28px;height:28px;border-radius:50%;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button></div>
+      <div id="day-detail-body"></div>
     </div>
   </div>
 
@@ -2370,6 +2414,119 @@ function switchScreen(name, el) {
   if (el) el.classList.add('active');
   if (name === 'profile') { loadProgressCharts(); loadWorkoutHistory(); }
   if (name === 'workout') loadWorkoutScreen();
+  if (name === 'history') loadCalendar();
+}
+
+// HISTORY / CALENDAR
+let calMonth = (() => { const d = new Date(); d.setDate(1); return d; })();
+let calData = { workouts: {}, nutrition: {}, weight: {}, meals: {}, sessions: {} };
+
+function calDateStr(y, m, d) {
+  return y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+}
+
+async function loadCalendar() {
+  if (!currentUser) return;
+  const y = calMonth.getFullYear();
+  const m = calMonth.getMonth();
+  const start = calDateStr(y, m, 1);
+  const end = calDateStr(y, m, new Date(y, m + 1, 0).getDate());
+
+  const [nut, bs, sessions] = await Promise.all([
+    sb.from('nutrition_logs').select('logged_date,food_name,meal_type,calories,protein_g,carbs_g,fat_g')
+      .eq('user_id', currentUser.id).gte('logged_date', start).lte('logged_date', end),
+    sb.from('body_stats').select('logged_date,weight_lbs,body_fat_pct')
+      .eq('user_id', currentUser.id).gte('logged_date', start).lte('logged_date', end),
+    sb.from('workout_sessions').select('id,date,plan_day,duration_minutes')
+      .eq('user_id', currentUser.id).gte('date', start).lte('date', end)
+  ]);
+
+  calData = { workouts: {}, nutrition: {}, weight: {}, meals: {}, sessions: {} };
+  (nut.data || []).forEach(r => {
+    (calData.meals[r.logged_date] = calData.meals[r.logged_date] || []).push(r);
+    calData.nutrition[r.logged_date] = true;
+  });
+  (bs.data || []).forEach(r => { calData.weight[r.logged_date] = r; });
+  (sessions.data || []).forEach(r => { calData.sessions[r.date] = r; calData.workouts[r.date] = true; });
+
+  renderCalendar();
+}
+
+function renderCalendar() {
+  const y = calMonth.getFullYear();
+  const m = calMonth.getMonth();
+  const firstDow = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const today = todayStr();
+
+  document.getElementById('cal-month-label').textContent = calMonth.toLocaleString(undefined, { month: 'long', year: 'numeric' });
+
+  const cells = [];
+  for (let i = 0; i < firstDow; i++) cells.push('<div class="cal-day empty"></div>');
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ds = calDateStr(y, m, d);
+    const dots = [
+      calData.workouts[ds] ? '<span class="cal-dot workout"></span>' : '',
+      calData.nutrition[ds] ? '<span class="cal-dot nutrition"></span>' : '',
+      calData.weight[ds] ? '<span class="cal-dot weight"></span>' : ''
+    ].join('');
+    const isToday = ds === today;
+    cells.push(`<div class="cal-day${isToday ? ' today' : ''}" onclick="openDayDetail('${ds}')"><div class="cal-num">${d}</div><div class="cal-dots">${dots}</div></div>`);
+  }
+  document.getElementById('cal-grid').innerHTML = cells.join('');
+}
+
+function calendarPrevMonth() { calMonth.setMonth(calMonth.getMonth() - 1); loadCalendar(); }
+function calendarNextMonth() { calMonth.setMonth(calMonth.getMonth() + 1); loadCalendar(); }
+
+async function openDayDetail(dateStr) {
+  const title = new Date(dateStr + 'T00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+  document.getElementById('day-detail-title').textContent = title;
+  const body = document.getElementById('day-detail-body');
+  body.innerHTML = '<div class="empty-state">Loading...</div>';
+  openModal('dayDetailModal');
+
+  const weight = calData.weight[dateStr];
+  const meals = calData.meals[dateStr] || [];
+  const session = calData.sessions[dateStr];
+  let html = '';
+
+  if (weight) {
+    html += `<div style="background:var(--g2);border:1px solid var(--g3);border-radius:12px;padding:0.75rem;margin-bottom:0.75rem;">
+      <div style="font-size:0.7rem;color:var(--g5);margin-bottom:0.25rem;">Body Weight</div>
+      <div style="font-family:var(--fd);font-size:1.1rem;color:var(--white);">${weight.weight_lbs} lbs${weight.body_fat_pct ? ' · ' + weight.body_fat_pct + '% BF' : ''}</div>
+    </div>`;
+  }
+
+  if (meals.length) {
+    const t = meals.reduce((a, l) => ({ cal: a.cal + (l.calories || 0), pro: a.pro + (l.protein_g || 0), carb: a.carb + (l.carbs_g || 0), fat: a.fat + (l.fat_g || 0) }), { cal: 0, pro: 0, carb: 0, fat: 0 });
+    html += `<div style="background:var(--g2);border:1px solid var(--g3);border-radius:12px;padding:0.75rem;margin-bottom:0.75rem;">
+      <div style="font-size:0.7rem;color:var(--g5);margin-bottom:0.25rem;">Meals (${meals.length})</div>
+      <div style="font-size:0.78rem;color:var(--white);margin-bottom:0.5rem;">${Math.round(t.cal)} cal · ${Math.round(t.pro)}g P · ${Math.round(t.carb)}g C · ${Math.round(t.fat)}g F</div>
+      ${meals.map(m => `<div style="padding:0.4rem 0;border-top:1px solid var(--g3);">
+        <div style="font-size:0.78rem;color:var(--white);">${m.food_name}</div>
+        <div style="font-size:0.68rem;color:var(--g5);">${m.meal_type || 'Other'} · ${Math.round(m.calories || 0)} cal · ${Math.round(m.protein_g || 0)}g protein</div>
+      </div>`).join('')}
+    </div>`;
+  }
+
+  if (session) {
+    const { data: sets } = await sb.from('workout_sets')
+      .select('exercise_name,set_number,weight_lbs,reps,rpe')
+      .eq('session_id', session.id).order('set_number');
+    const byEx = {};
+    (sets || []).forEach(s => { (byEx[s.exercise_name] = byEx[s.exercise_name] || []).push(s); });
+    html += `<div style="background:var(--g2);border:1px solid var(--g3);border-radius:12px;padding:0.75rem;">
+      <div style="font-size:0.7rem;color:var(--g5);margin-bottom:0.25rem;">Workout · ${session.plan_day || '—'}${session.duration_minutes ? ' · ' + session.duration_minutes + 'm' : ''}</div>
+      ${Object.entries(byEx).map(([name, list]) => `<div style="padding:0.4rem 0;border-top:1px solid var(--g3);">
+        <div style="font-size:0.78rem;color:var(--white);margin-bottom:0.2rem;">${name}</div>
+        <div style="font-size:0.68rem;color:var(--g5);">${list.map(s => `${s.weight_lbs || 0}×${s.reps || 0}${s.rpe ? ' @' + s.rpe : ''}`).join(' · ')}</div>
+      </div>`).join('') || '<div style="font-size:0.72rem;color:var(--g5);padding-top:0.4rem;">No sets logged</div>'}
+    </div>`;
+  }
+
+  if (!html) html = '<div class="empty-state">No data logged on this day.</div>';
+  body.innerHTML = html;
 }
 
 function openModal(id) { document.getElementById(id).classList.add('active'); }
