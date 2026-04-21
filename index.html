@@ -995,6 +995,7 @@ html, body { height: 100%; background: var(--black); color: var(--white); font-f
 <script>
 const SUPABASE_URL = 'https://bapoblzecolvsimmemvo.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_fpGkv75gAqAF2Uoqw19urw_F5Meotgu';
+const CLAUDE_PROXY_URL = 'https://bapoblzecolvsimmemvo.supabase.co/functions/v1/supabase-functions-claude-proxy-index-ts';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let currentUser = null;
@@ -1138,18 +1139,39 @@ function foodSearch(query) {
 
 async function claudeFoodLookup(query) {
   const sug = document.getElementById('food-suggestions');
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return;
+
+  const showError = (msg) => {
+    sug.innerHTML = `<div style="padding:0.75rem 1rem;font-size:0.75rem;color:var(--danger);">${msg}</div>`;
+    sug.style.display = 'block';
+  };
+
   try {
-    const res = await fetch('/.netlify/functions/food-lookup', {
+    const res = await fetch(CLAUDE_PROXY_URL, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
       },
-      body: JSON.stringify({ query })
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 600,
+        system: 'You are a nutrition database. Given a food query, return ONLY a JSON array of 3-5 matching foods (no markdown, no prose). Each item must be: {"name":"<food with brand/variant>","calories":<kcal number>,"protein":<grams>,"carbs":<grams>,"fat":<grams>,"serving":"<serving size>"}. Use realistic USDA-style values.',
+        messages: [{ role: 'user', content: `Food query: ${query}` }]
+      })
     });
-    if (!res.ok) { sug.style.display = 'none'; return; }
-    const text = await res.text();
-    const foods = JSON.parse(text.trim());
-    if (!foods.length) { sug.style.display = 'none'; return; }
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.log('[proxy] HTTP', res.status, errorText);
+      showError('Food search unavailable — enter macros manually below.');
+      return;
+    }
+    const data = await res.json();
+    const raw = data?.content?.[0]?.text?.trim();
+    if (!raw) { sug.style.display = 'none'; return; }
+    const foods = JSON.parse(raw);
+    if (!Array.isArray(foods) || !foods.length) { sug.style.display = 'none'; return; }
     sug.innerHTML = foods.map((f, i) =>
       `<div data-idx="${i}" style="padding:0.75rem 1rem;border-bottom:1px solid var(--g3);cursor:pointer;">
         <div style="font-size:0.85rem;font-weight:500;color:var(--white);">${f.name}</div>
@@ -1161,8 +1183,8 @@ async function claudeFoodLookup(query) {
       el.addEventListener('click', () => selectFood(foods[i].name, foods[i].calories, foods[i].protein, foods[i].carbs, foods[i].fat));
     });
   } catch(e) {
-    // Silently fail — macro fields below are always available for manual entry
-    sug.style.display = 'none';
+    console.log('[proxy] exception:', e);
+    showError('Food search error — enter macros manually below.');
   }
 }
 
